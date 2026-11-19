@@ -1,0 +1,262 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global Safety Net: Default deny all unmatched paths
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- GLOBAL HARDENED PRIMITIVES ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidStringList(arr, maxLen) {
+      return arr is list &&
+             arr.size() <= maxLen &&
+             (arr.size() == 0 || (arr[0] is string && arr[0].size() <= 200));
+    }
+
+    // --- ENTITY VALIDATION BLUEPRINTS ---
+    function isValidUserProfile(data, userId) {
+      return data.userId is string && data.userId == userId &&
+             data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 100 &&
+             data.headline is string && data.headline.size() <= 120 &&
+             data.location is string && data.location.size() <= 100 &&
+             data.availabilityStatus in ['OPEN_TO_WORK', 'ACTIVELY_LOOKING', 'PASSIVE', 'NOT_LOOKING'] &&
+             (!('photoUrl' in data) || data.photoUrl == null || (data.photoUrl is string && data.photoUrl.size() <= 500)) &&
+             isValidStringList(data.targetRoles, 10) &&
+             data.expectedSalaryMin is int && data.expectedSalaryMin >= 0 && data.expectedSalaryMin <= 10000000000 &&
+             data.expectedSalaryMax is int && data.expectedSalaryMax >= 0 && data.expectedSalaryMax <= 10000000000 &&
+             isValidStringList(data.preferredWorkTypes, 10) &&
+             data.followUpRemindersEnabled is bool &&
+             data.darkModeEnabled is bool &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidJobApplication(data, userId) {
+      return data.userId is string && data.userId == userId &&
+             data.dossierCode is string && data.dossierCode.size() >= 1 && data.dossierCode.size() <= 20 &&
+             data.roleTitle is string && data.roleTitle.size() >= 1 && data.roleTitle.size() <= 120 &&
+             data.companyName is string && data.companyName.size() >= 1 && data.companyName.size() <= 120 &&
+             data.location is string && data.location.size() <= 100 &&
+             data.status in ['DISIMPAN', 'DILAMAR', 'ADMINISTRASI', 'INTERVIEW', 'OFFER', 'DITOLAK'] &&
+             data.workMode in ['HYBRID', 'REMOTE', 'ONSITE'] &&
+             data.contractType in ['FULL_TIME', 'KONTRAK', 'FREELANCE', 'MAGANG'] &&
+             data.salaryMin is int && data.salaryMin >= 0 && data.salaryMin <= 10000000000 &&
+             data.salaryMax is int && data.salaryMax >= 0 && data.salaryMax <= 10000000000 &&
+             data.appliedDateMillis is int && data.appliedDateMillis >= 0 &&
+             data.targetResponseMillis is int && data.targetResponseMillis >= 0 &&
+             data.notes is string && data.notes.size() <= 3000 &&
+             data.hrContact is string && data.hrContact.size() <= 200 &&
+             isValidStringList(data.attachments, 10) &&
+             data.starred is bool &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidInterviewSchedule(data, userId) {
+      return data.userId is string && data.userId == userId &&
+             data.applicationId is string && data.applicationId.size() <= 128 &&
+             data.companyName is string && data.companyName.size() >= 1 && data.companyName.size() <= 120 &&
+             data.roleTitle is string && data.roleTitle.size() >= 1 && data.roleTitle.size() <= 120 &&
+             data.stageTitle is string && data.stageTitle.size() >= 1 && data.stageTitle.size() <= 80 &&
+             data.scheduledAtMillis is int && data.scheduledAtMillis >= 0 &&
+             data.durationMinutes is int && data.durationMinutes >= 5 && data.durationMinutes <= 480 &&
+             data.meetingFormat in ['ONLINE', 'ONSITE', 'PHONE'] &&
+             data.meetingLocation is string && data.meetingLocation.size() <= 300 &&
+             data.interviewerName is string && data.interviewerName.size() <= 120 &&
+             data.prepNotes is string && data.prepNotes.size() <= 2000 &&
+             data.completed is bool &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidCareerDocument(data, userId) {
+      return data.userId is string && data.userId == userId &&
+             data.title is string && data.title.size() >= 1 && data.title.size() <= 120 &&
+             data.category in ['CV', 'PORTFOLIO', 'CERTIFICATION', 'OTHER'] &&
+             data.subtitle is string && data.subtitle.size() <= 160 &&
+             data.externalUrl is string && data.externalUrl.size() <= 500 &&
+             data.verified is bool &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    // --- USER PROFILE COLLECTION ---
+    match /users/{userId} {
+      allow get: if isOwner(userId) && isValidId(userId);
+      allow list: if false;
+
+      allow create: if isOwner(userId) &&
+                       isValidId(userId) &&
+                       incoming().keys().hasAll([
+                         'userId', 'displayName', 'headline', 'location',
+                         'availabilityStatus', 'targetRoles', 'expectedSalaryMin',
+                         'expectedSalaryMax', 'preferredWorkTypes',
+                         'followUpRemindersEnabled', 'darkModeEnabled',
+                         'createdAt', 'updatedAt'
+                       ]) &&
+                       incoming().keys().hasOnly([
+                         'userId', 'displayName', 'headline', 'location',
+                         'availabilityStatus', 'photoUrl', 'targetRoles',
+                         'expectedSalaryMin', 'expectedSalaryMax', 'preferredWorkTypes',
+                         'followUpRemindersEnabled', 'darkModeEnabled',
+                         'createdAt', 'updatedAt'
+                       ]) &&
+                       isValidUserProfile(incoming(), userId);
+
+      allow update: if isOwner(userId) &&
+                       isValidId(userId) &&
+                       isValidUserProfile(incoming(), userId) &&
+                       incoming().userId == existing().userId &&
+                       incoming().createdAt == existing().createdAt &&
+                       (
+                         incoming().diff(existing()).affectedKeys().hasOnly([
+                           'displayName', 'headline', 'location', 'availabilityStatus',
+                           'photoUrl', 'updatedAt'
+                         ]) ||
+                         incoming().diff(existing()).affectedKeys().hasOnly([
+                           'targetRoles', 'expectedSalaryMin', 'expectedSalaryMax',
+                           'preferredWorkTypes', 'updatedAt'
+                         ]) ||
+                         incoming().diff(existing()).affectedKeys().hasOnly([
+                           'followUpRemindersEnabled', 'darkModeEnabled', 'updatedAt'
+                         ])
+                       );
+
+      allow delete: if isOwner(userId) && isValidId(userId);
+
+      // --- JOB APPLICATIONS SUBCOLLECTION ---
+      match /applications/{applicationId} {
+        allow get: if isOwner(userId) && isValidId(applicationId);
+        allow list: if isOwner(userId);
+
+        allow create: if isOwner(userId) &&
+                         isValidId(applicationId) &&
+                         incoming().keys().hasAll([
+                           'userId', 'dossierCode', 'roleTitle', 'companyName',
+                           'location', 'status', 'workMode', 'contractType',
+                           'salaryMin', 'salaryMax', 'appliedDateMillis',
+                           'targetResponseMillis', 'notes', 'hrContact',
+                           'attachments', 'starred', 'createdAt', 'updatedAt'
+                         ]) &&
+                         incoming().keys().hasOnly([
+                           'userId', 'dossierCode', 'roleTitle', 'companyName',
+                           'location', 'status', 'workMode', 'contractType',
+                           'salaryMin', 'salaryMax', 'appliedDateMillis',
+                           'targetResponseMillis', 'notes', 'hrContact',
+                           'attachments', 'starred', 'createdAt', 'updatedAt'
+                         ]) &&
+                         isValidJobApplication(incoming(), userId);
+
+        allow update: if isOwner(userId) &&
+                         isValidId(applicationId) &&
+                         isValidJobApplication(incoming(), userId) &&
+                         incoming().userId == existing().userId &&
+                         incoming().dossierCode == existing().dossierCode &&
+                         incoming().createdAt == existing().createdAt &&
+                         (
+                           incoming().diff(existing()).affectedKeys().hasOnly(['starred', 'updatedAt']) ||
+                           incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']) ||
+                           incoming().diff(existing()).affectedKeys().hasOnly([
+                             'roleTitle', 'companyName', 'location', 'status',
+                             'workMode', 'contractType', 'salaryMin', 'salaryMax',
+                             'appliedDateMillis', 'targetResponseMillis', 'notes',
+                             'hrContact', 'attachments', 'starred', 'updatedAt'
+                           ])
+                         );
+
+        allow delete: if isOwner(userId) && isValidId(applicationId);
+      }
+
+      // --- INTERVIEW SCHEDULES SUBCOLLECTION ---
+      match /schedules/{scheduleId} {
+        allow get: if isOwner(userId) && isValidId(scheduleId);
+        allow list: if isOwner(userId);
+
+        allow create: if isOwner(userId) &&
+                         isValidId(scheduleId) &&
+                         incoming().keys().hasAll([
+                           'userId', 'applicationId', 'companyName', 'roleTitle',
+                           'stageTitle', 'scheduledAtMillis', 'durationMinutes',
+                           'meetingFormat', 'meetingLocation', 'interviewerName',
+                           'prepNotes', 'completed', 'createdAt', 'updatedAt'
+                         ]) &&
+                         incoming().keys().hasOnly([
+                           'userId', 'applicationId', 'companyName', 'roleTitle',
+                           'stageTitle', 'scheduledAtMillis', 'durationMinutes',
+                           'meetingFormat', 'meetingLocation', 'interviewerName',
+                           'prepNotes', 'completed', 'createdAt', 'updatedAt'
+                         ]) &&
+                         isValidInterviewSchedule(incoming(), userId);
+
+        allow update: if isOwner(userId) &&
+                         isValidId(scheduleId) &&
+                         isValidInterviewSchedule(incoming(), userId) &&
+                         incoming().userId == existing().userId &&
+                         incoming().createdAt == existing().createdAt &&
+                         (
+                           incoming().diff(existing()).affectedKeys().hasOnly(['completed', 'updatedAt']) ||
+                           incoming().diff(existing()).affectedKeys().hasOnly([
+                             'applicationId', 'companyName', 'roleTitle', 'stageTitle',
+                             'scheduledAtMillis', 'durationMinutes', 'meetingFormat',
+                             'meetingLocation', 'interviewerName', 'prepNotes',
+                             'completed', 'updatedAt'
+                           ])
+                         );
+
+        allow delete: if isOwner(userId) && isValidId(scheduleId);
+      }
+
+      // --- CAREER DOCUMENTS SUBCOLLECTION ---
+      match /documents/{documentId} {
+        allow get: if isOwner(userId) && isValidId(documentId);
+        allow list: if isOwner(userId);
+
+        allow create: if isOwner(userId) &&
+                         isValidId(documentId) &&
+                         incoming().keys().hasAll([
+                           'userId', 'title', 'category', 'subtitle',
+                           'externalUrl', 'verified', 'createdAt', 'updatedAt'
+                         ]) &&
+                         incoming().keys().hasOnly([
+                           'userId', 'title', 'category', 'subtitle',
+                           'externalUrl', 'verified', 'createdAt', 'updatedAt'
+                         ]) &&
+                         isValidCareerDocument(incoming(), userId);
+
+        allow update: if isOwner(userId) &&
+                         isValidId(documentId) &&
+                         isValidCareerDocument(incoming(), userId) &&
+                         incoming().userId == existing().userId &&
+                         incoming().createdAt == existing().createdAt &&
+                         incoming().diff(existing()).affectedKeys().hasOnly([
+                           'title', 'category', 'subtitle', 'externalUrl',
+                           'verified', 'updatedAt'
+                         ]);
+
+        allow delete: if isOwner(userId) && isValidId(documentId);
+      }
+    }
+  }
+}

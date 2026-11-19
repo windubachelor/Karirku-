@@ -1,0 +1,200 @@
+name: Build & Release KarirKu APK
+
+on:
+  push:
+    branches:
+      - main
+      - master
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Tag rilis opsional (contoh: v1.0.1). Kosongkan untuk otomatis."
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-apk:
+    name: Build Signed APK & Publish Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Accept Android SDK licenses & ensure SDK 36.1
+        run: |
+          yes | sdkmanager --licenses > /dev/null 2>&1 || true
+          sdkmanager "platforms;android-36.1" || true
+
+      - name: Set up Gradle 9.3.1
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "9.3.1"
+
+      - name: Prepare Debug & Release Keystores
+        id: keystore
+        env:
+          SECRET_KEYSTORE_B64: ${{ secrets.KEYSTORE_BASE64 }}
+          SECRET_STORE_PASS: ${{ secrets.STORE_PASSWORD }}
+          SECRET_KEY_PASS: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+
+          # 1. Restore debug.keystore from debug.keystore.base64 (matches Firebase SHA-1)
+          if [ -f "debug.keystore.base64" ]; then
+            base64 -d debug.keystore.base64 > debug.keystore
+            echo "Restored debug.keystore from debug.keystore.base64"
+          else
+            keytool -genkeypair -v \
+              -keystore debug.keystore \
+              -storetype PKCS12 \
+              -storepass android \
+              -keypass android \
+              -alias androiddebugkey \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 10000 \
+              -dname "CN=Android Debug,O=Android,C=US"
+            echo "Generated fallback debug.keystore"
+          fi
+
+          # 2. Prepare release keystore: use GitHub Secrets if configured, else auto-generate
+          KEYSTORE_FILE="${GITHUB_WORKSPACE}/my-upload-key.jks"
+          if [ -n "${SECRET_KEYSTORE_B64}" ] && [ -n "${SECRET_STORE_PASS}" ] && [ -n "${SECRET_KEY_PASS}" ]; then
+            echo "${SECRET_KEYSTORE_B64}" | base64 -d > "${KEYSTORE_FILE}"
+            RELEASE_STORE_PASS="${SECRET_STORE_PASS}"
+            RELEASE_KEY_PASS="${SECRET_KEY_PASS}"
+            echo "mode=secret" >> "$GITHUB_OUTPUT"
+            echo "Using persistent release keystore from GitHub Secrets"
+          else
+            AUTO_PASS="$(openssl rand -hex 16)"
+            echo "::add-mask::${AUTO_PASS}"
+            keytool -genkeypair -v \
+              -keystore "${KEYSTORE_FILE}" \
+              -storetype PKCS12 \
+              -storepass "${AUTO_PASS}" \
+              -keypass "${AUTO_PASS}" \
+              -alias upload \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 10000 \
+              -dname "CN=KarirKu, OU=Mobile, O=KarirKu, L=Jakarta, S=DKI Jakarta, C=ID"
+            RELEASE_STORE_PASS="${AUTO_PASS}"
+            RELEASE_KEY_PASS="${AUTO_PASS}"
+            echo "mode=auto" >> "$GITHUB_OUTPUT"
+            echo "Auto-generated release keystore on GitHub Actions"
+          fi
+
+          # Export environment variables expected by app/build.gradle.kts signingConfigs.release
+          {
+            echo "KEYSTORE_PATH=${KEYSTORE_FILE}"
+            echo "STORE_PASSWORD=${RELEASE_STORE_PASS}"
+            echo "KEY_PASSWORD=${RELEASE_KEY_PASS}"
+          } >> "$GITHUB_ENV"
+
+          # Extract SHA-1 fingerprints for release summary
+          RELEASE_SHA1=$(keytool -list -v -keystore "${KEYSTORE_FILE}" -alias upload -storepass "${RELEASE_STORE_PASS}" \
+            | awk '/SHA1:/ {print $2; exit}')
+          echo "release_sha1=${RELEASE_SHA1}" >> "$GITHUB_OUTPUT"
+
+      - name: Build Release & Debug APKs
+        run: |
+          gradle :app:assembleRelease :app:assembleDebug --no-daemon --stacktrace
+
+      - name: Package APKs with versioned names
+        id: package
+        env:
+          INPUT_RELEASE_TAG: ${{ github.event.inputs.release_tag }}
+        run: |
+          set -euo pipefail
+          mkdir -p release-apks
+
+          VERSION_NAME=$(grep -E 'versionName\s*=' app/build.gradle.kts | head -n 1 | sed -E 's/.*"([^"]+)".*/\1/')
+          VERSION_NAME="${VERSION_NAME:-1.0}"
+          BUILD_NUM="${GITHUB_RUN_NUMBER}"
+
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            RELEASE_TAG="${GITHUB_REF#refs/tags/}"
+          elif [ -n "${INPUT_RELEASE_TAG}" ]; then
+            RELEASE_TAG="${INPUT_RELEASE_TAG}"
+          else
+            RELEASE_TAG="v${VERSION_NAME}-build.${BUILD_NUM}"
+          fi
+
+          RELEASE_APK="release-apks/KarirKu-${RELEASE_TAG}-release.apk"
+          DEBUG_APK="release-apks/KarirKu-${RELEASE_TAG}-debug.apk"
+
+          cp app/build/outputs/apk/release/app-release.apk "${RELEASE_APK}"
+          cp app/build/outputs/apk/debug/app-debug.apk "${DEBUG_APK}"
+
+          ls -lh release-apks/
+
+          {
+            echo "release_tag=${RELEASE_TAG}"
+            echo "release_apk=${RELEASE_APK}"
+            echo "debug_apk=${DEBUG_APK}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Upload APK Artifacts (Actions)
+        uses: actions/upload-artifact@v4
+        with:
+          name: KarirKu-APK-${{ steps.package.outputs.release_tag }}
+          path: |
+            ${{ steps.package.outputs.release_apk }}
+            ${{ steps.package.outputs.debug_apk }}
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Publish GitHub Release with Downloadable APKs
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.package.outputs.release_tag }}
+          name: "KarirKu ${{ steps.package.outputs.release_tag }}"
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          body: |
+            ## KarirKu Android APK (${{ steps.package.outputs.release_tag }})
+
+            ### File APK Siap Unduh
+            - **Debug APK (`KarirKu-${{ steps.package.outputs.release_tag }}-debug.apk`)** — Direkomendasikan untuk langsung diinstal & login Google Sign-In karena sudah menggunakan tanda tangan SHA-1 yang terdaftar di Firebase proyek ini.
+            - **Release APK (`KarirKu-${{ steps.package.outputs.release_tag }}-release.apk`)** — Build rilis signed (`keystore mode: ${{ steps.keystore.outputs.mode }}`).
+
+            ### Info Build
+            - **Commit:** `${{ github.sha }}`
+            - **Run Number:** `#${{ github.run_number }}`
+            - **Release SHA-1:** `${{ steps.keystore.outputs.release_sha1 }}`
+
+            > **Catatan Google Sign-In pada Release APK:** Jika menggunakan Release APK dengan keystore otomatis, tambahkan `Release SHA-1` di atas ke Firebase Console > Project Settings > Android App, atau simpan keystore permanen pada GitHub Repository Secrets (`KEYSTORE_BASE64`, `STORE_PASSWORD`, `KEY_PASSWORD`).
+          files: |
+            ${{ steps.package.outputs.release_apk }}
+            ${{ steps.package.outputs.debug_apk }}
+
+      - name: Write Build Summary
+        run: |
+          {
+            echo "## KarirKu APK Build Berhasil"
+            echo ""
+            echo "- **Release Tag:** \`${{ steps.package.outputs.release_tag }}\`"
+            echo "- **Keystore Mode:** \`${{ steps.keystore.outputs.mode }}\`"
+            echo "- **Release SHA-1:** \`${{ steps.keystore.outputs.release_sha1 }}\`"
+            echo "- **Artifacts:** Tersedia di bagian **Artifacts** di bawah dan di halaman **GitHub Releases**."
+          } >> "$GITHUB_STEP_SUMMARY"

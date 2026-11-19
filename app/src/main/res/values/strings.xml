@@ -1,0 +1,13 @@
+<resources>
+    <string name="app_name">KarirKu</string>
+    <string name="editorial_dossier_tag">EDITORIAL DOSSIER</string>
+    <string name="nav_beranda">Beranda</string>
+    <string name="nav_lamaran">Lamaran</string>
+    <string name="nav_jadwal">Jadwal</string>
+    <string name="nav_profil">Profil</string>
+    <string name="cta_sign_in_google">Masuk dengan Google</string>
+    <string name="cta_add_application">CATAT LAMARAN</string>
+    <string name="cta_save_application">Simpan Lamaran Pekerjaan</string>
+    <string name="cta_save_draft">Simpan Sebagai Draft</string>
+    <string name="cta_sign_out">Keluar Akun</string>
+</resources>

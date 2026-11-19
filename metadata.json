@@ -1,0 +1,6 @@
+{
+  "name": "KarirKu",
+  "description": "Aplikasi manajemen karir dan pelacak lamaran kerja bergaya editorial modern dengan pipeline seleksi, jadwal wawancara, dan dossier portofolio.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

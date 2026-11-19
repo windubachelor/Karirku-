@@ -1,0 +1,341 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Career profile dossier, salary expectations, target roles, and app preferences for an authenticated KarirKu user.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Authenticated Firebase UID of the profile owner."
+        },
+        "displayName": {
+          "type": "string",
+          "description": "User full display name shown on the dossier header."
+        },
+        "headline": {
+          "type": "string",
+          "description": "Professional role headline such as Senior Product & UX Designer."
+        },
+        "location": {
+          "type": "string",
+          "description": "City or region preference such as Jakarta Selatan."
+        },
+        "availabilityStatus": {
+          "type": "string",
+          "enum": ["OPEN_TO_WORK", "ACTIVELY_LOOKING", "PASSIVE", "NOT_LOOKING"],
+          "description": "Current job search availability status."
+        },
+        "photoUrl": {
+          "type": "string",
+          "description": "Optional profile avatar URL from Google account."
+        },
+        "targetRoles": {
+          "type": "array",
+          "description": "Bounded list (max 10) of target job role titles."
+        },
+        "expectedSalaryMin": {
+          "type": "integer",
+          "description": "Minimum monthly gross salary expectation in IDR."
+        },
+        "expectedSalaryMax": {
+          "type": "integer",
+          "description": "Maximum monthly gross salary expectation in IDR."
+        },
+        "preferredWorkTypes": {
+          "type": "array",
+          "description": "Bounded list (max 10) of preferred work arrangements and locations."
+        },
+        "followUpRemindersEnabled": {
+          "type": "boolean",
+          "description": "Whether follow-up reminder badges are enabled."
+        },
+        "darkModeEnabled": {
+          "type": "boolean",
+          "description": "Whether dark theme mode is enabled."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp set via FieldValue.serverTimestamp() upon creation."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp set via FieldValue.serverTimestamp() upon modification."
+        }
+      },
+      "required": [
+        "userId",
+        "displayName",
+        "headline",
+        "location",
+        "availabilityStatus",
+        "targetRoles",
+        "expectedSalaryMin",
+        "expectedSalaryMax",
+        "preferredWorkTypes",
+        "followUpRemindersEnabled",
+        "darkModeEnabled",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "JobApplication": {
+      "title": "JobApplication",
+      "description": "Individual job application dossier entry tracking stage, compensation, work model, dates, notes, and attached file metadata.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Authenticated Firebase UID of the application owner."
+        },
+        "dossierCode": {
+          "type": "string",
+          "description": "Short dossier identifier code such as #ID-8849."
+        },
+        "roleTitle": {
+          "type": "string",
+          "description": "Job role title applied for."
+        },
+        "companyName": {
+          "type": "string",
+          "description": "Target company name."
+        },
+        "location": {
+          "type": "string",
+          "description": "Job location or remote region."
+        },
+        "status": {
+          "type": "string",
+          "enum": ["DISIMPAN", "DILAMAR", "ADMINISTRASI", "INTERVIEW", "OFFER", "DITOLAK"],
+          "description": "Active selection pipeline stage."
+        },
+        "workMode": {
+          "type": "string",
+          "enum": ["HYBRID", "REMOTE", "ONSITE"],
+          "description": "Work arrangement model."
+        },
+        "contractType": {
+          "type": "string",
+          "enum": ["FULL_TIME", "KONTRAK", "FREELANCE", "MAGANG"],
+          "description": "Employment contract type."
+        },
+        "salaryMin": {
+          "type": "integer",
+          "description": "Minimum offered or expected gross monthly salary in IDR."
+        },
+        "salaryMax": {
+          "type": "integer",
+          "description": "Maximum offered or expected gross monthly salary in IDR."
+        },
+        "appliedDateMillis": {
+          "type": "integer",
+          "description": "Application submission date in epoch milliseconds."
+        },
+        "targetResponseMillis": {
+          "type": "integer",
+          "description": "Expected response or follow-up date in epoch milliseconds."
+        },
+        "notes": {
+          "type": "string",
+          "description": "Role responsibilities, evaluation notes, and markdown bullets."
+        },
+        "hrContact": {
+          "type": "string",
+          "description": "HR or recruiter contact details."
+        },
+        "attachments": {
+          "type": "array",
+          "description": "Bounded list (max 10) of attached document summary strings."
+        },
+        "starred": {
+          "type": "boolean",
+          "description": "Whether this application is prioritized/starred."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp set via FieldValue.serverTimestamp() upon creation."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp set via FieldValue.serverTimestamp() upon modification."
+        }
+      },
+      "required": [
+        "userId",
+        "dossierCode",
+        "roleTitle",
+        "companyName",
+        "location",
+        "status",
+        "workMode",
+        "contractType",
+        "salaryMin",
+        "salaryMax",
+        "appliedDateMillis",
+        "targetResponseMillis",
+        "notes",
+        "hrContact",
+        "attachments",
+        "starred",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "InterviewSchedule": {
+      "title": "InterviewSchedule",
+      "description": "Scheduled interview, assessment, or follow-up session in the user's career calendar.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Authenticated Firebase UID of the schedule owner."
+        },
+        "applicationId": {
+          "type": "string",
+          "description": "Optional linked JobApplication document ID or empty string."
+        },
+        "companyName": {
+          "type": "string",
+          "description": "Company name for this interview session."
+        },
+        "roleTitle": {
+          "type": "string",
+          "description": "Role title associated with this interview."
+        },
+        "stageTitle": {
+          "type": "string",
+          "description": "Stage title such as Interview HR & User or Technical Test."
+        },
+        "scheduledAtMillis": {
+          "type": "integer",
+          "description": "Scheduled session timestamp in epoch milliseconds."
+        },
+        "durationMinutes": {
+          "type": "integer",
+          "description": "Estimated session duration in minutes."
+        },
+        "meetingFormat": {
+          "type": "string",
+          "enum": ["ONLINE", "ONSITE", "PHONE"],
+          "description": "Format of the interview session."
+        },
+        "meetingLocation": {
+          "type": "string",
+          "description": "Meeting URL, platform name, or office address."
+        },
+        "interviewerName": {
+          "type": "string",
+          "description": "Name or role of the interviewer."
+        },
+        "prepNotes": {
+          "type": "string",
+          "description": "Preparation checklist and talking points."
+        },
+        "completed": {
+          "type": "boolean",
+          "description": "Whether the interview session has been completed."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp set via FieldValue.serverTimestamp() upon creation."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp set via FieldValue.serverTimestamp() upon modification."
+        }
+      },
+      "required": [
+        "userId",
+        "applicationId",
+        "companyName",
+        "roleTitle",
+        "stageTitle",
+        "scheduledAtMillis",
+        "durationMinutes",
+        "meetingFormat",
+        "meetingLocation",
+        "interviewerName",
+        "prepNotes",
+        "completed",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "CareerDocument": {
+      "title": "CareerDocument",
+      "description": "Resume, portfolio link, or certification entry saved in the user's career dossier.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Authenticated Firebase UID of the document owner."
+        },
+        "title": {
+          "type": "string",
+          "description": "Document display title such as CV ATS-Friendly 2026."
+        },
+        "category": {
+          "type": "string",
+          "enum": ["CV", "PORTFOLIO", "CERTIFICATION", "OTHER"],
+          "description": "Category of the career document."
+        },
+        "subtitle": {
+          "type": "string",
+          "description": "Descriptor metadata such as PDF • 2.4 MB or Behance • 8 Proyek."
+        },
+        "externalUrl": {
+          "type": "string",
+          "description": "External link or file reference label."
+        },
+        "verified": {
+          "type": "boolean",
+          "description": "Whether this credential or document is marked verified."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp set via FieldValue.serverTimestamp() upon creation."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp set via FieldValue.serverTimestamp() upon modification."
+        }
+      },
+      "required": [
+        "userId",
+        "title",
+        "category",
+        "subtitle",
+        "externalUrl",
+        "verified",
+        "createdAt",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "User-owned career dossier profile and preferences."
+    },
+    "/users/{userId}/applications/{applicationId}": {
+      "schema": { "$ref": "#/entities/JobApplication" },
+      "description": "User-owned job application pipeline entries."
+    },
+    "/users/{userId}/schedules/{scheduleId}": {
+      "schema": { "$ref": "#/entities/InterviewSchedule" },
+      "description": "User-owned interview and follow-up schedules."
+    },
+    "/users/{userId}/documents/{documentId}": {
+      "schema": { "$ref": "#/entities/CareerDocument" },
+      "description": "User-owned resumes, portfolios, and certifications."
+    }
+  }
+}
