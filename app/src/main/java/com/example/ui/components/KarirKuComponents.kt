@@ -66,15 +66,21 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.annotation.DrawableRes
+import androidx.compose.foundation.Image
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
@@ -291,6 +297,12 @@ fun UserAvatarCircle(
 fun AtmosphericDarkCard(
     modifier: Modifier = Modifier,
     cornerRadius: Dp = 26.dp,
+    @DrawableRes cornerIllustrationRes: Int? = null,
+    illustrationAlignment: Alignment = Alignment.BottomEnd,
+    illustrationSize: Dp = 154.dp,
+    illustrationAlpha: Float = 0.36f,
+    illustrationOffsetX: Dp = 10.dp,
+    illustrationOffsetY: Dp = 10.dp,
     onClick: (() -> Unit)? = null,
     content: @Composable BoxScope.() -> Unit
 ) {
@@ -397,6 +409,34 @@ fun AtmosphericDarkCard(
                     )
                     y += step
                 }
+            }
+            if (cornerIllustrationRes != null) {
+                Image(
+                    painter = painterResource(id = cornerIllustrationRes),
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .align(illustrationAlignment)
+                        .size(illustrationSize)
+                        .offset(x = illustrationOffsetX, y = illustrationOffsetY)
+                        .graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen)
+                        .drawWithContent {
+                            drawContent()
+                            drawRect(
+                                brush = Brush.radialGradient(
+                                    colorStops = arrayOf(
+                                        0.0f to Color.Black.copy(alpha = illustrationAlpha),
+                                        0.58f to Color.Black.copy(alpha = illustrationAlpha * 0.88f),
+                                        0.84f to Color.Black.copy(alpha = illustrationAlpha * 0.24f),
+                                        1.0f to Color.Transparent
+                                    ),
+                                    center = Offset(size.width * 0.52f, size.height * 0.52f),
+                                    radius = size.minDimension * 0.52f
+                                ),
+                                blendMode = BlendMode.DstIn
+                            )
+                        }
+                )
             }
             content()
         }

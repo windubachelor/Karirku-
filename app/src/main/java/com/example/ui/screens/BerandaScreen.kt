@@ -55,6 +55,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.R
 import com.example.data.ApplicationStatus
 import com.example.data.JobApplication
 import com.example.ui.components.AtmosphericDarkCard
@@ -143,6 +144,12 @@ fun BerandaScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .testTag("beranda_hero_card"),
+                    cornerIllustrationRes = R.drawable.img_header_beranda_1795098523162,
+                    illustrationAlignment = Alignment.BottomEnd,
+                    illustrationSize = 158.dp,
+                    illustrationAlpha = 0.36f,
+                    illustrationOffsetX = 12.dp,
+                    illustrationOffsetY = 12.dp,
                     onClick = onOpenScheduleTab
                 ) {
                     Column(
@@ -837,22 +844,22 @@ fun BerandaScreen(
             }
         }
 
-        // Raised 3D Floating Super-App CTA (+ CATAT LAMARAN)
+        // Raised 3D Floating Super-App CTA (+ TAMBAH LAMARAN) — sleek elongated single-line pill
         Box(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .padding(bottom = 14.dp)
-                .width(214.dp)
+                .padding(horizontal = 20.dp, vertical = 14.dp)
         ) {
             TactileRaisedButton(
                 onClick = onAddApplicationClick,
+                fillMaxWidth = false,
                 modifier = Modifier.testTag("fab_catat_lamaran"),
                 containerColor = colors.heroDarkSurface,
                 contentColor = colors.heroOnDark,
                 lipColor = Color(0xFF040507),
                 glowColor = colors.accentAmber.copy(alpha = 0.32f),
                 cornerRadius = 999.dp,
-                contentPadding = PaddingValues(start = 10.dp, end = 20.dp, top = 10.dp, bottom = 10.dp)
+                contentPadding = PaddingValues(start = 10.dp, end = 22.dp, top = 10.dp, bottom = 10.dp)
             ) {
                 Box(
                     modifier = Modifier
@@ -879,9 +886,11 @@ fun BerandaScreen(
                         fontFamily = UnboundedFontFamily,
                         fontWeight = FontWeight.Bold,
                         fontSize = 11.sp,
-                        letterSpacing = 0.5.sp
+                        letterSpacing = 0.4.sp
                     ),
-                    color = colors.heroOnDark
+                    color = colors.heroOnDark,
+                    maxLines = 1,
+                    softWrap = false
                 )
             }
         }

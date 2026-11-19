@@ -269,8 +269,16 @@ fun DossierFormScreen(
             }
         }
 
-        // Dark Editorial Header Card (Clean non-wrapping top tags, redundant bottom bar removed)
-        AtmosphericDarkCard(modifier = Modifier.fillMaxWidth()) {
+        // Dark Editorial Header Card with unique semi-transparent corner anime illustration
+        AtmosphericDarkCard(
+            modifier = Modifier.fillMaxWidth(),
+            cornerIllustrationRes = R.drawable.img_header_form_1795098524930,
+            illustrationAlignment = Alignment.BottomEnd,
+            illustrationSize = 152.dp,
+            illustrationAlpha = 0.36f,
+            illustrationOffsetX = 12.dp,
+            illustrationOffsetY = 12.dp
+        ) {
             Column(
                 modifier = Modifier.padding(20.dp),
                 verticalArrangement = Arrangement.spacedBy(11.dp)

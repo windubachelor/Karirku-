@@ -274,6 +274,7 @@ fun TactileRaisedButton(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     isLoading: Boolean = false,
+    fillMaxWidth: Boolean = true,
     containerColor: Color = KarirKuThemeTokens.colors.heroDarkSurface,
     contentColor: Color = KarirKuThemeTokens.colors.heroOnDark,
     lipColor: Color = Color(0xFF06070A),
@@ -282,10 +283,12 @@ fun TactileRaisedButton(
     contentPadding: PaddingValues = PaddingValues(horizontal = 20.dp, vertical = 15.dp),
     content: @Composable RowScope.() -> Unit
 ) {
+    val colors = KarirKuThemeTokens.colors
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
     val haptic = LocalHapticFeedback.current
     val effectiveEnabled = enabled && !isLoading
+    val showRaisedStyle = enabled || isLoading
 
     val pressOffsetY by animateDpAsState(
         targetValue = if (isPressed && effectiveEnabled) 3.dp else 0.dp,
@@ -299,62 +302,76 @@ fun TactileRaisedButton(
     )
 
     val shape = RoundedCornerShape(cornerRadius)
-    val activeBg = if (effectiveEnabled) containerColor else containerColor.copy(alpha = 0.55f)
+    val activeBg = if (showRaisedStyle) containerColor else colors.recessedSurface
+    val resolvedContentColor = if (showRaisedStyle) contentColor else colors.textMuted
 
     Box(
         modifier = modifier
-            .padding(bottom = 4.dp)
+            .padding(bottom = if (showRaisedStyle) 4.dp else 0.dp)
             .graphicsLayer {
                 scaleX = scale
                 scaleY = scale
             }
             .modernColoredShadow(
-                color = if (effectiveEnabled) glowColor else Color.Transparent,
+                color = if (showRaisedStyle) glowColor else Color.Transparent,
                 cornerRadius = cornerRadius,
                 blurRadius = 20.dp,
                 offsetY = 9.dp
             )
     ) {
-        // 3D Bottom Lip
-        Box(
-            modifier = Modifier
-                .matchParentSize()
-                .offset(y = 4.dp)
-                .clip(shape)
-                .background(if (effectiveEnabled) lipColor else lipColor.copy(alpha = 0.35f))
-        )
+        // 3D Bottom Lip (only when active/loading to prevent muddy overlap when disabled)
+        if (showRaisedStyle) {
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .offset(y = 4.dp)
+                    .clip(shape)
+                    .background(lipColor)
+            )
+        }
 
         // Button Face
+        val widthMod = if (fillMaxWidth) Modifier.fillMaxWidth() else Modifier
         Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(min = 52.dp)
-                .offset(y = pressOffsetY)
+            modifier = widthMod
+                .heightIn(min = 50.dp)
+                .offset(y = if (showRaisedStyle) pressOffsetY else 0.dp)
                 .clip(shape)
                 .background(activeBg)
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(
-                            Color.White.copy(alpha = 0.16f),
-                            Color.Transparent
-                        ),
-                        endY = 75f
-                    )
-                )
-                .border(
-                    width = 1.dp,
-                    brush = Brush.verticalGradient(
-                        colors = listOf(
-                            Color.White.copy(alpha = 0.24f),
-                            Color.Transparent
+                .then(
+                    if (showRaisedStyle) {
+                        Modifier
+                            .background(
+                                Brush.verticalGradient(
+                                    colors = listOf(
+                                        Color.White.copy(alpha = 0.16f),
+                                        Color.Transparent
+                                    ),
+                                    endY = 75f
+                                )
+                            )
+                            .border(
+                                width = 1.dp,
+                                brush = Brush.verticalGradient(
+                                    colors = listOf(
+                                        Color.White.copy(alpha = 0.24f),
+                                        Color.Transparent
+                                    )
+                                ),
+                                shape = shape
+                            )
+                    } else {
+                        Modifier.border(
+                            width = 1.dp,
+                            color = colors.borderSubtle,
+                            shape = shape
                         )
-                    ),
-                    shape = shape
+                    }
                 )
                 .clickable(
                     enabled = effectiveEnabled,
                     interactionSource = interactionSource,
-                    indication = ripple(color = contentColor),
+                    indication = ripple(color = resolvedContentColor),
                     onClick = {
                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                         onClick()
@@ -363,7 +380,7 @@ fun TactileRaisedButton(
                 .padding(contentPadding),
             contentAlignment = Alignment.Center
         ) {
-            CompositionLocalProvider(LocalContentColor provides contentColor) {
+            CompositionLocalProvider(LocalContentColor provides resolvedContentColor) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.Center
@@ -371,7 +388,7 @@ fun TactileRaisedButton(
                     if (isLoading) {
                         CircularProgressIndicator(
                             modifier = Modifier.size(20.dp),
-                            color = contentColor,
+                            color = resolvedContentColor,
                             strokeWidth = 2.4.dp
                         )
                     } else {

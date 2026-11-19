@@ -30,21 +30,26 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.rounded.Logout
 import androidx.compose.material.icons.outlined.DarkMode
 import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.Edit
-import androidx.compose.material.icons.outlined.Language
 import androidx.compose.material.icons.outlined.Layers
 import androidx.compose.material.icons.outlined.LocationOn
 import androidx.compose.material.icons.outlined.NotificationsActive
+import androidx.compose.material.icons.outlined.OpenInNew
+import androidx.compose.material.icons.outlined.UploadFile
 import androidx.compose.material.icons.outlined.VerifiedUser
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.TrendingUp
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -135,9 +140,17 @@ fun ProfilScreen(
         contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 108.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
-        // 1. Dark Atmospheric Profile Card
+        // 1. Dark Atmospheric Profile Card with unique semi-transparent corner anime illustration
         item(key = "dossier_card") {
-            AtmosphericDarkCard(modifier = Modifier.fillMaxWidth()) {
+            AtmosphericDarkCard(
+                modifier = Modifier.fillMaxWidth(),
+                cornerIllustrationRes = R.drawable.img_header_profil_1795098524967,
+                illustrationAlignment = Alignment.TopEnd,
+                illustrationSize = 152.dp,
+                illustrationAlpha = 0.34f,
+                illustrationOffsetX = 16.dp,
+                illustrationOffsetY = (-8).dp
+            ) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -826,11 +839,27 @@ private fun CareerDocumentRowCard(
     onDelete: () -> Unit
 ) {
     val colors = KarirKuThemeTokens.colors
+    var showMenu by remember { mutableStateOf(false) }
+
     val (icon, tintBg, tintFg) = when (document.categoryEnum) {
         DocumentCategory.CV -> Triple(Icons.Outlined.Description, colors.crimsonSoftBg, colors.accentCrimson)
         DocumentCategory.PORTFOLIO -> Triple(Icons.Outlined.Layers, colors.blueSoftBg, colors.accentBlue)
         DocumentCategory.CERTIFICATION -> Triple(Icons.Outlined.VerifiedUser, colors.emeraldSoftBg, colors.accentEmerald)
         DocumentCategory.OTHER -> Triple(Icons.Outlined.Description, colors.recessedSurface, colors.textPrimary)
+    }
+
+    val hasLink = document.externalUrl.isNotBlank()
+    val hostPreview = remember(document.externalUrl) {
+        if (!hasLink) "" else try {
+            val normalized = if (document.externalUrl.startsWith("http://") || document.externalUrl.startsWith("https://")) {
+                document.externalUrl
+            } else {
+                "https://${document.externalUrl}"
+            }
+            Uri.parse(normalized).host?.removePrefix("www.") ?: ""
+        } catch (_: Exception) {
+            ""
+        }
     }
 
     TactileRaisedCard(
@@ -839,31 +868,65 @@ private fun CareerDocumentRowCard(
             .testTag("profil_doc_card_${document.id}"),
         containerColor = colors.cardSurface,
         borderColor = colors.borderSubtle,
-        cornerRadius = 18.dp,
+        cornerRadius = 20.dp,
         lipDepth = 2.5.dp,
-        onClick = if (document.externalUrl.isNotBlank()) onOpen else null
+        onClick = if (hasLink) onOpen else null
     ) {
         Row(
-            modifier = Modifier.padding(14.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Box(
                 modifier = Modifier
-                    .size(44.dp)
+                    .size(46.dp)
                     .modernColoredShadow(
-                        color = tintFg.copy(alpha = 0.22f),
-                        cornerRadius = 12.dp,
+                        color = tintFg.copy(alpha = 0.20f),
+                        cornerRadius = 14.dp,
                         blurRadius = 10.dp,
                         offsetY = 4.dp
                     )
-                    .clip(RoundedCornerShape(12.dp))
+                    .clip(RoundedCornerShape(14.dp))
                     .background(tintBg),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(icon, contentDescription = null, tint = tintFg, modifier = Modifier.size(22.dp))
             }
-            Column(modifier = Modifier.weight(1f)) {
+
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(3.dp)
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(6.dp),
+                        color = tintBg
+                    ) {
+                        Text(
+                            text = document.categoryEnum.label.uppercase(),
+                            style = MonoEyebrowStyle.copy(fontSize = 8.5.sp, letterSpacing = 0.3.sp),
+                            color = tintFg,
+                            maxLines = 1,
+                            softWrap = false,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
+                    if (hostPreview.isNotBlank()) {
+                        Text(
+                            text = hostPreview,
+                            style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                            color = colors.textMuted,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+
                 Text(
                     text = document.title,
                     style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
@@ -871,36 +934,100 @@ private fun CareerDocumentRowCard(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-                Text(
-                    text = document.subtitle.ifBlank { document.categoryEnum.label },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = if (document.verified) colors.accentEmerald else colors.textMuted,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-            if (document.externalUrl.isNotBlank()) {
-                IconButton(
-                    onClick = onOpen,
-                    modifier = Modifier
-                        .size(38.dp)
-                        .testTag("profil_doc_open_${document.id}")
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.Language,
-                        contentDescription = "Buka tautan di dalam aplikasi",
-                        tint = colors.accentBlue,
-                        modifier = Modifier.size(19.dp)
+
+                val sub = document.subtitle.trim()
+                if (sub.isNotBlank() && !sub.equals(document.categoryEnum.label, ignoreCase = true)) {
+                    Text(
+                        text = sub,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (document.verified) colors.accentEmerald else colors.textMuted,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
             }
-            IconButton(onClick = onDelete, modifier = Modifier.size(38.dp)) {
-                Icon(
-                    imageVector = Icons.Outlined.DeleteOutline,
-                    contentDescription = "Hapus dokumen",
-                    tint = colors.textMuted,
-                    modifier = Modifier.size(18.dp)
-                )
+
+            // Clean modern action pill + minimalist overflow menu (no clunky globe/trash icons)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                if (hasLink) {
+                    Surface(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(999.dp))
+                            .tactileClickable(onClick = onOpen)
+                            .testTag("profil_doc_open_${document.id}"),
+                        shape = RoundedCornerShape(999.dp),
+                        color = colors.recessedSurface,
+                        border = BorderStroke(1.dp, colors.borderSubtle)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(2.dp)
+                        ) {
+                            Text(
+                                text = "Lihat",
+                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                color = colors.textPrimary,
+                                maxLines = 1,
+                                softWrap = false
+                            )
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+                                contentDescription = "Buka pratinjau dokumen",
+                                tint = colors.accentAmber,
+                                modifier = Modifier.size(15.dp)
+                            )
+                        }
+                    }
+                }
+
+                Box {
+                    IconButton(
+                        onClick = { showMenu = true },
+                        modifier = Modifier
+                            .size(34.dp)
+                            .testTag("profil_doc_more_${document.id}")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.MoreVert,
+                            contentDescription = "Opsi dokumen",
+                            tint = colors.textMuted,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                    DropdownMenu(
+                        expanded = showMenu,
+                        onDismissRequest = { showMenu = false },
+                        containerColor = colors.cardSurface,
+                        shape = RoundedCornerShape(16.dp)
+                    ) {
+                        if (hasLink) {
+                            DropdownMenuItem(
+                                text = { Text("Buka Pratinjau", color = colors.textPrimary) },
+                                leadingIcon = {
+                                    Icon(Icons.Outlined.OpenInNew, contentDescription = null, tint = colors.textSecondary, modifier = Modifier.size(18.dp))
+                                },
+                                onClick = {
+                                    showMenu = false
+                                    onOpen()
+                                }
+                            )
+                        }
+                        DropdownMenuItem(
+                            text = { Text("Hapus Dokumen", color = colors.accentCrimson, fontWeight = FontWeight.SemiBold) },
+                            leadingIcon = {
+                                Icon(Icons.Outlined.DeleteOutline, contentDescription = null, tint = colors.accentCrimson, modifier = Modifier.size(18.dp))
+                            },
+                            onClick = {
+                                showMenu = false
+                                onDelete()
+                            }
+                        )
+                    }
+                }
             }
         }
     }
@@ -1238,14 +1365,66 @@ private fun AddDocumentBottomSheet(
                 }
             }
 
-            OutlinedButton(
-                onClick = { filePicker.launch(arrayOf("application/pdf", "application/msword", "image/*")) },
-                shape = RoundedCornerShape(14.dp),
+            // Clean Tactile Upload Tile (never clips text on large font scales)
+            Surface(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(48.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .tactileClickable {
+                        filePicker.launch(arrayOf("application/pdf", "application/msword", "image/*"))
+                    }
+                    .testTag("doc_pick_file_button"),
+                shape = RoundedCornerShape(16.dp),
+                color = colors.recessedSurface,
+                border = BorderStroke(1.dp, colors.borderSubtle)
             ) {
-                Text("Pilih Berkas dari Perangkat (Opsional)")
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(colors.amberSoftBg),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.UploadFile,
+                            contentDescription = null,
+                            tint = colors.accentAmber,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        Text(
+                            text = "Pilih Berkas dari Perangkat",
+                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                            color = colors.textPrimary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                            text = "PDF, DOCX, atau Gambar • Opsional",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = colors.textMuted,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+                        contentDescription = null,
+                        tint = colors.textMuted,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
             }
 
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
