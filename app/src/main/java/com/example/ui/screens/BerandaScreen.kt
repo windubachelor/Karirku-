@@ -341,49 +341,51 @@ fun BerandaScreen(
                 }
             }
 
-            // 2. Pipeline Seleksi Header
+            // 2. Pipeline Seleksi Header (Non-colliding two-tier editorial layout)
             item(key = "pipeline_header") {
-                Row(
+                val offerPct = String.format(Locale.US, "%.1f%%", metrics.offerRatePercent)
+                Column(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.Bottom
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.Top
+                    ) {
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(3.dp)
                         ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(6.dp)
-                                    .clip(CircleShape)
-                                    .background(colors.accentAmber)
-                            )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(6.dp)
+                                        .clip(CircleShape)
+                                        .background(colors.accentAmber)
+                                )
+                                Text(
+                                    text = "ARSITEKTUR ALUR",
+                                    style = MonoEyebrowStyle,
+                                    color = colors.accentAmber,
+                                    maxLines = 1
+                                )
+                            }
                             Text(
-                                text = "ARSITEKTUR ALUR",
-                                style = MonoEyebrowStyle,
-                                color = colors.accentAmber
+                                text = "Pipeline Seleksi",
+                                style = MaterialTheme.typography.headlineLarge.copy(
+                                    fontFamily = UnboundedFontFamily,
+                                    fontSize = 20.sp
+                                ),
+                                color = colors.textPrimary,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
-                        Text(
-                            text = "Pipeline Seleksi",
-                            style = MaterialTheme.typography.headlineLarge.copy(
-                                fontFamily = UnboundedFontFamily,
-                                fontSize = 21.sp
-                            ),
-                            color = colors.textPrimary
-                        )
-                        Text(
-                            text = "Tahapan & Rasio Konversi Aktif",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = colors.textMuted
-                        )
-                    }
 
-                    Column(
-                        horizontalAlignment = Alignment.End,
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
                         Surface(
                             shape = RoundedCornerShape(999.dp),
                             color = colors.cardSurface,
@@ -404,16 +406,41 @@ fun BerandaScreen(
                                 Text(
                                     text = "${metrics.totalCount} Berkas",
                                     style = MonoMetricStyle.copy(fontSize = 11.sp),
-                                    color = colors.textPrimary
+                                    color = colors.textPrimary,
+                                    maxLines = 1,
+                                    softWrap = false
                                 )
                             }
                         }
-                        val offerPct = String.format(Locale.US, "%.1f%%", metrics.offerRatePercent)
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         Text(
-                            text = "↗ $offerPct ke Offer",
-                            style = MonoEyebrowStyle.copy(fontSize = 10.sp),
-                            color = colors.accentAmber
+                            text = "Tahapan & Rasio Konversi Aktif",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = colors.textMuted,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f)
                         )
+                        Surface(
+                            shape = RoundedCornerShape(999.dp),
+                            color = colors.amberSoftBg.copy(alpha = if (colors.isDark) 0.45f else 0.75f),
+                            border = BorderStroke(1.dp, colors.accentAmber.copy(alpha = 0.25f))
+                        ) {
+                            Text(
+                                text = "↗ $offerPct ke Offer",
+                                style = MonoEyebrowStyle.copy(fontSize = 9.5.sp, letterSpacing = 0.2.sp),
+                                color = colors.accentAmber,
+                                maxLines = 1,
+                                softWrap = false,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                            )
+                        }
                     }
                 }
             }
@@ -426,20 +453,25 @@ fun BerandaScreen(
             // 4. Asymmetric 2-Column Hero Metric Bento (Interview Dark 3D + Offer Mint 3D)
             item(key = "hero_bento_row") {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(IntrinsicSize.Max),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     // Left: Obsidian Krusial Interview Card
                     AtmosphericDarkCard(
                         modifier = Modifier
                             .weight(1f)
+                            .fillMaxHeight()
                             .testTag("bento_interview_card"),
                         cornerRadius = 22.dp,
                         onClick = { onSelectFilter(ApplicationStatus.INTERVIEW) }
                     ) {
                         Column(
-                            modifier = Modifier.padding(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                            modifier = Modifier
+                                .fillMaxHeight()
+                                .padding(15.dp),
+                            verticalArrangement = Arrangement.SpaceBetween
                         ) {
                             Surface(
                                 shape = RoundedCornerShape(999.dp),
@@ -460,10 +492,14 @@ fun BerandaScreen(
                                     Text(
                                         text = "KRUSIAL",
                                         style = MonoEyebrowStyle.copy(fontSize = 9.sp),
-                                        color = colors.accentAmber
+                                        color = colors.accentAmber,
+                                        maxLines = 1,
+                                        softWrap = false
                                     )
                                 }
                             }
+
+                            Spacer(Modifier.height(10.dp))
 
                             Row(
                                 verticalAlignment = Alignment.Bottom,
@@ -478,9 +514,13 @@ fun BerandaScreen(
                                     text = "AGENDA",
                                     style = MonoEyebrowStyle.copy(fontSize = 9.sp),
                                     color = colors.heroOnDarkMuted,
+                                    maxLines = 1,
+                                    softWrap = false,
                                     modifier = Modifier.padding(bottom = 6.dp)
                                 )
                             }
+
+                            Spacer(Modifier.height(8.dp))
 
                             Column {
                                 Text(
@@ -494,14 +534,15 @@ fun BerandaScreen(
                                     text = "Tahap penentu teknikal",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = colors.heroOnDarkMuted,
-                                    maxLines = 1
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
                                 )
                             }
 
+                            Spacer(Modifier.height(10.dp))
+
                             Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(top = 2.dp),
+                                modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
@@ -527,6 +568,7 @@ fun BerandaScreen(
                     TactileRaisedCard(
                         modifier = Modifier
                             .weight(1f)
+                            .fillMaxHeight()
                             .testTag("bento_offer_card"),
                         containerColor = colors.emeraldSoftBg,
                         borderColor = colors.emeraldBorder,
@@ -537,8 +579,10 @@ fun BerandaScreen(
                         onClick = { onSelectFilter(ApplicationStatus.OFFER) }
                     ) {
                         Column(
-                            modifier = Modifier.padding(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                            modifier = Modifier
+                                .fillMaxHeight()
+                                .padding(15.dp),
+                            verticalArrangement = Arrangement.SpaceBetween
                         ) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
@@ -551,27 +595,31 @@ fun BerandaScreen(
                                     border = BorderStroke(1.dp, colors.emeraldBorder)
                                 ) {
                                     Row(
-                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 4.dp),
                                         verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                        horizontalArrangement = Arrangement.spacedBy(3.dp)
                                     ) {
                                         Icon(
                                             imageVector = Icons.Rounded.WorkspacePremium,
                                             contentDescription = null,
                                             tint = colors.accentEmerald,
-                                            modifier = Modifier.size(12.dp)
+                                            modifier = Modifier.size(11.dp)
                                         )
                                         Text(
                                             text = "OFFER",
-                                            style = MonoEyebrowStyle.copy(fontSize = 9.sp),
-                                            color = colors.accentEmerald
+                                            style = MonoEyebrowStyle.copy(fontSize = 8.5.sp, letterSpacing = 0.3.sp),
+                                            color = colors.accentEmerald,
+                                            maxLines = 1,
+                                            softWrap = false
                                         )
                                     }
                                 }
                                 Text(
                                     text = "${metrics.winRatePercent}% Win",
-                                    style = MonoEyebrowStyle.copy(fontSize = 9.sp),
-                                    color = colors.accentEmerald
+                                    style = MonoEyebrowStyle.copy(fontSize = 8.5.sp, letterSpacing = 0.1.sp),
+                                    color = colors.accentEmerald,
+                                    maxLines = 1,
+                                    softWrap = false
                                 )
                             }
 
@@ -635,11 +683,13 @@ fun BerandaScreen(
                 }
             }
 
-            // 5. Three-Column Compact Stage Strip (Raised 3D with safe intrinsic sizing)
+            // 5. Three-Column Compact Stage Strip (Uniform height, non-wrapping percent pill)
             item(key = "compact_stage_strip") {
                 val safeTotal = metrics.totalCount.coerceAtLeast(1)
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(IntrinsicSize.Max),
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     CompactStageCard(
@@ -649,7 +699,9 @@ fun BerandaScreen(
                         subtitle = "Menunggu review",
                         stripeColor = colors.textMuted,
                         onClick = { onSelectFilter(ApplicationStatus.DILAMAR) },
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
                     )
                     CompactStageCard(
                         label = "SCREENING",
@@ -658,7 +710,9 @@ fun BerandaScreen(
                         subtitle = "Lolos admin",
                         stripeColor = colors.accentBlue,
                         onClick = { onSelectFilter(ApplicationStatus.ADMINISTRASI) },
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
                     )
                     CompactStageCard(
                         label = "WISHLIST",
@@ -667,7 +721,9 @@ fun BerandaScreen(
                         subtitle = "Arsip target",
                         stripeColor = colors.accentAmber,
                         onClick = { onSelectFilter(ApplicationStatus.DISIMPAN) },
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
                     )
                 }
             }
@@ -1060,36 +1116,48 @@ private fun CompactStageCard(
                     .padding(horizontal = 10.dp, vertical = 10.dp),
                 verticalArrangement = Arrangement.SpaceBetween
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = label,
-                        style = MonoEyebrowStyle.copy(fontSize = 8.5.sp, letterSpacing = 0.5.sp),
-                        color = colors.textMuted,
-                        maxLines = 1
-                    )
-                    Text(
-                        text = "$percent%",
-                        style = MonoEyebrowStyle.copy(fontSize = 9.sp),
-                        color = stripeColor
-                    )
-                }
+                Text(
+                    text = label,
+                    style = MonoEyebrowStyle.copy(fontSize = 8.5.sp, letterSpacing = 0.4.sp),
+                    color = colors.textMuted,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
 
                 Spacer(Modifier.height(6.dp))
 
-                Text(
-                    text = count.toString().padStart(2, '0'),
-                    style = MaterialTheme.typography.headlineMedium.copy(
-                        fontFamily = UnboundedFontFamily,
-                        fontWeight = FontWeight.Bold
-                    ),
-                    color = colors.textPrimary
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.Bottom
+                ) {
+                    Text(
+                        text = count.toString().padStart(2, '0'),
+                        style = MaterialTheme.typography.headlineMedium.copy(
+                            fontFamily = UnboundedFontFamily,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 20.sp
+                        ),
+                        color = colors.textPrimary,
+                        maxLines = 1,
+                        softWrap = false
+                    )
+                    Surface(
+                        shape = RoundedCornerShape(6.dp),
+                        color = stripeColor.copy(alpha = 0.12f)
+                    ) {
+                        Text(
+                            text = "$percent%",
+                            style = MonoEyebrowStyle.copy(fontSize = 8.5.sp, letterSpacing = 0.sp),
+                            color = stripeColor,
+                            maxLines = 1,
+                            softWrap = false,
+                            modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                        )
+                    }
+                }
 
-                Spacer(Modifier.height(4.dp))
+                Spacer(Modifier.height(6.dp))
 
                 Text(
                     text = subtitle,

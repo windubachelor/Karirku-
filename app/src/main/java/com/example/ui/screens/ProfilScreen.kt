@@ -314,34 +314,55 @@ fun ProfilScreen(
         item(key = "documents_header") {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(
-                    verticalAlignment = Alignment.Bottom,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
+                    Text(
+                        text = "DOSSIER",
+                        style = MonoEyebrowStyle.copy(fontSize = 9.5.sp),
+                        color = colors.accentAmber,
+                        maxLines = 1
+                    )
                     Text(
                         text = "Dokumen & Portofolio",
                         style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.ExtraBold),
-                        color = colors.textPrimary
-                    )
-                    Text(
-                        text = "DOSSIER",
-                        style = MonoEyebrowStyle.copy(fontSize = 9.sp),
-                        color = colors.textMuted,
-                        modifier = Modifier.padding(bottom = 2.dp)
+                        color = colors.textPrimary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
-                TextButton(
-                    onClick = { showAddDocumentSheet = true },
-                    modifier = Modifier.testTag("profil_add_document_button")
+                Surface(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(12.dp))
+                        .tactileClickable { showAddDocumentSheet = true }
+                        .testTag("profil_add_document_button"),
+                    shape = RoundedCornerShape(12.dp),
+                    color = colors.cardSurface,
+                    border = BorderStroke(1.dp, colors.borderSubtle)
                 ) {
-                    Text(
-                        text = "+ TAMBAH",
-                        style = MonoMetricStyle,
-                        color = colors.textPrimary
-                    )
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Add,
+                            contentDescription = null,
+                            tint = colors.accentAmber,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Text(
+                            text = "Tambah",
+                            style = MonoMetricStyle.copy(fontSize = 11.5.sp),
+                            color = colors.textPrimary,
+                            maxLines = 1,
+                            softWrap = false
+                        )
+                    }
                 }
             }
         }
@@ -412,32 +433,34 @@ fun ProfilScreen(
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.Bottom,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(2.dp)
                     ) {
+                        Text(
+                            text = "KRITERIA",
+                            style = MonoEyebrowStyle.copy(fontSize = 9.5.sp),
+                            color = colors.accentAmber,
+                            maxLines = 1
+                        )
                         Text(
                             text = "Preferensi Karier",
                             style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.ExtraBold),
-                            color = colors.textPrimary
-                        )
-                        Text(
-                            text = "KRITERIA",
-                            style = MonoEyebrowStyle.copy(fontSize = 9.sp),
-                            color = colors.textMuted,
-                            modifier = Modifier.padding(bottom = 2.dp)
+                            color = colors.textPrimary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
                     IconButton(
                         onClick = { showEditPreferencesSheet = true },
                         modifier = Modifier
-                            .size(38.dp)
-                            .clip(RoundedCornerShape(10.dp))
+                            .size(40.dp)
+                            .clip(RoundedCornerShape(11.dp))
                             .background(colors.cardSurface)
-                            .border(1.dp, colors.borderSubtle, RoundedCornerShape(10.dp))
+                            .border(1.dp, colors.borderSubtle, RoundedCornerShape(11.dp))
                             .testTag("profil_edit_preferences_button")
                     ) {
                         Icon(
@@ -558,20 +581,19 @@ fun ProfilScreen(
         // 4. Pengaturan & Integrasi Section
         item(key = "settings_section") {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Row(
-                    verticalAlignment = Alignment.Bottom,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(
+                        text = "SISTEM",
+                        style = MonoEyebrowStyle.copy(fontSize = 9.5.sp),
+                        color = colors.accentAmber,
+                        maxLines = 1
+                    )
                     Text(
                         text = "Pengaturan & Integrasi",
                         style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.ExtraBold),
-                        color = colors.textPrimary
-                    )
-                    Text(
-                        text = "SISTEM",
-                        style = MonoEyebrowStyle.copy(fontSize = 9.sp),
-                        color = colors.textMuted,
-                        modifier = Modifier.padding(bottom = 2.dp)
+                        color = colors.textPrimary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
 

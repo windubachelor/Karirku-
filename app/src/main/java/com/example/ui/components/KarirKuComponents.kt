@@ -1,5 +1,6 @@
 package com.example.ui.components
 
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
@@ -20,12 +21,15 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material.icons.outlined.CalendarMonth
@@ -53,16 +57,22 @@ import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -508,6 +518,7 @@ fun StatusBadgePill(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun JobApplicationCard(
     application: JobApplication,
@@ -604,11 +615,11 @@ fun JobApplicationCard(
                 }
             }
 
-            // Compensation & Work Mode Chips
-            Row(
+            // Compensation & Work Mode Chips (FlowRow prevents truncation on narrow/scaled displays)
+            FlowRow(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
+                verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 Surface(
                     shape = RoundedCornerShape(10.dp),
@@ -633,7 +644,8 @@ fun JobApplicationCard(
                             ),
                             style = MonoMetricStyle.copy(fontSize = 11.sp),
                             color = colors.textPrimary,
-                            maxLines = 1
+                            maxLines = 1,
+                            softWrap = false
                         )
                     }
                 }
@@ -659,6 +671,7 @@ fun JobApplicationCard(
                             style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
                             color = colors.textSecondary,
                             maxLines = 1,
+                            softWrap = false,
                             overflow = TextOverflow.Ellipsis
                         )
                     }
@@ -825,59 +838,135 @@ fun DossierDetailBottomSheet(
                 }
             }
 
-            // Compensation & Dates summary
+            // Compensation & Dates summary (clean breathable rows, zero date collision)
             Surface(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
-                color = colors.recessedSurface
+                color = colors.recessedSurface,
+                border = BorderStroke(1.dp, colors.borderSubtle.copy(alpha = 0.65f))
             ) {
                 Column(
                     modifier = Modifier.padding(14.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("Kompensasi", style = MaterialTheme.typography.bodySmall, color = colors.textMuted)
+                        Text(
+                            text = "Kompensasi",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = colors.textMuted
+                        )
                         Text(
                             text = KarirKuFormatters.formatIdrCompactRange(application.salaryMin, application.salaryMax),
-                            style = MonoMetricStyle,
-                            color = colors.textPrimary
+                            style = MonoMetricStyle.copy(fontSize = 12.sp),
+                            color = colors.textPrimary,
+                            textAlign = TextAlign.End,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f)
                         )
                     }
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("Model Kerja", style = MaterialTheme.typography.bodySmall, color = colors.textMuted)
+                        Text(
+                            text = "Model Kerja",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = colors.textMuted
+                        )
                         Text(
                             text = "${application.workModeEnum.label} • ${application.contractTypeEnum.label}",
                             style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold),
-                            color = colors.textPrimary
+                            color = colors.textPrimary,
+                            textAlign = TextAlign.End,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f)
                         )
                     }
+
+                    HorizontalDivider(color = colors.borderSubtle.copy(alpha = 0.6f))
+
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Text("Dilamar / Target Respon", style = MaterialTheme.typography.bodySmall, color = colors.textMuted)
-                        Text(
-                            text = "${KarirKuFormatters.formatDateShort(application.appliedDateMillis)} → ${KarirKuFormatters.formatDateShort(application.targetResponseMillis)}",
-                            style = MonoMetricStyle.copy(fontSize = 11.sp),
-                            color = colors.textSecondary
-                        )
+                        Surface(
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(11.dp),
+                            color = colors.cardSurface,
+                            border = BorderStroke(1.dp, colors.borderSubtle.copy(alpha = 0.7f))
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                                verticalArrangement = Arrangement.spacedBy(2.dp)
+                            ) {
+                                Text(
+                                    text = "DILAMAR",
+                                    style = MonoEyebrowStyle.copy(fontSize = 8.5.sp),
+                                    color = colors.textMuted,
+                                    maxLines = 1
+                                )
+                                Text(
+                                    text = KarirKuFormatters.formatDateShort(application.appliedDateMillis),
+                                    style = MonoMetricStyle.copy(fontSize = 11.5.sp),
+                                    color = colors.textPrimary,
+                                    maxLines = 1,
+                                    softWrap = false
+                                )
+                            }
+                        }
+                        Surface(
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(11.dp),
+                            color = colors.cardSurface,
+                            border = BorderStroke(1.dp, colors.borderSubtle.copy(alpha = 0.7f))
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                                verticalArrangement = Arrangement.spacedBy(2.dp)
+                            ) {
+                                Text(
+                                    text = "TARGET RESPON",
+                                    style = MonoEyebrowStyle.copy(fontSize = 8.5.sp),
+                                    color = colors.accentAmber,
+                                    maxLines = 1
+                                )
+                                Text(
+                                    text = KarirKuFormatters.formatDateShort(application.targetResponseMillis),
+                                    style = MonoMetricStyle.copy(fontSize = 11.5.sp),
+                                    color = colors.textPrimary,
+                                    maxLines = 1,
+                                    softWrap = false
+                                )
+                            }
+                        }
                     }
+
                     if (application.hrContact.isNotBlank()) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text("Kontak HRD", style = MaterialTheme.typography.bodySmall, color = colors.textMuted)
+                            Text(
+                                text = "Kontak HRD",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = colors.textMuted
+                            )
                             Text(
                                 text = application.hrContact,
                                 style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold),
-                                color = colors.textPrimary
+                                color = colors.textPrimary,
+                                textAlign = TextAlign.End,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f)
                             )
                         }
                     }
@@ -927,7 +1016,8 @@ fun DossierDetailBottomSheet(
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 TactileRaisedButton(
                     onClick = onEditClick,
@@ -935,25 +1025,38 @@ fun DossierDetailBottomSheet(
                         .weight(1f)
                         .testTag("sheet_edit_application_button"),
                     cornerRadius = 15.dp,
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp)
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 12.dp)
                 ) {
-                    Icon(Icons.Outlined.Edit, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Icon(Icons.Outlined.Edit, contentDescription = null, modifier = Modifier.size(16.dp))
                     Spacer(Modifier.width(6.dp))
-                    Text("Edit Dossier", style = MaterialTheme.typography.labelLarge)
+                    Text(
+                        text = "Edit Dossier",
+                        style = MaterialTheme.typography.labelLarge.copy(fontSize = 13.sp),
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Ellipsis
+                    )
                 }
 
                 OutlinedButton(
                     onClick = onCreateInterviewClick,
                     modifier = Modifier
                         .weight(1f)
-                        .height(52.dp)
+                        .height(50.dp)
                         .testTag("sheet_add_interview_button"),
                     shape = RoundedCornerShape(15.dp),
-                    border = BorderStroke(1.dp, colors.borderSubtle)
+                    border = BorderStroke(1.dp, colors.borderSubtle),
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 10.dp)
                 ) {
-                    Icon(Icons.Outlined.CalendarMonth, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Icon(Icons.Outlined.CalendarMonth, contentDescription = null, modifier = Modifier.size(16.dp))
                     Spacer(Modifier.width(6.dp))
-                    Text("Jadwalkan", style = MaterialTheme.typography.labelLarge)
+                    Text(
+                        text = "Jadwalkan",
+                        style = MaterialTheme.typography.labelLarge.copy(fontSize = 13.sp),
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Ellipsis
+                    )
                 }
             }
 
@@ -969,7 +1072,124 @@ fun DossierDetailBottomSheet(
             ) {
                 Icon(Icons.Outlined.DeleteOutline, contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(6.dp))
-                Text("Hapus Lamaran", style = MaterialTheme.typography.labelLarge)
+                Text(
+                    text = "Hapus Lamaran",
+                    style = MaterialTheme.typography.labelLarge,
+                    maxLines = 1,
+                    softWrap = false
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Sleek, compact, single-line or multiline input field with crisp focus border animation
+ * and guaranteed single-line placeholder ellipsis (eliminates Material OutlinedTextField height bloat).
+ */
+@Composable
+fun KarirKuCompactTextField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    placeholder: String,
+    modifier: Modifier = Modifier,
+    leadingIcon: (@Composable () -> Unit)? = null,
+    trailingIcon: (@Composable () -> Unit)? = null,
+    prefixText: String? = null,
+    singleLine: Boolean = true,
+    minLines: Int = 1,
+    maxLines: Int = if (singleLine) 1 else 6,
+    cornerRadius: Dp = 14.dp,
+    containerColor: Color = KarirKuThemeTokens.colors.recessedSurface,
+    keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
+    elevatedShadow: Boolean = false
+) {
+    val colors = KarirKuThemeTokens.colors
+    var isFocused by remember { mutableStateOf(false) }
+    val borderColor by animateColorAsState(
+        targetValue = if (isFocused) colors.textPrimary else colors.borderSubtle,
+        label = "compactFieldBorder"
+    )
+    val shape = RoundedCornerShape(cornerRadius)
+
+    Box(
+        modifier = modifier
+            .then(
+                if (elevatedShadow) {
+                    Modifier.modernColoredShadow(
+                        color = if (colors.isDark) Color.Black.copy(alpha = 0.36f) else Color(0xFF2B2118).copy(alpha = 0.08f),
+                        cornerRadius = cornerRadius,
+                        blurRadius = 12.dp,
+                        offsetY = 4.dp
+                    )
+                } else Modifier
+            )
+            .then(
+                if (singleLine) Modifier.height(48.dp) else Modifier.heightIn(min = 96.dp)
+            )
+            .clip(shape)
+            .background(containerColor)
+            .border(
+                width = if (isFocused) 1.5.dp else 1.dp,
+                color = borderColor,
+                shape = shape
+            )
+            .padding(
+                horizontal = 14.dp,
+                vertical = if (singleLine) 0.dp else 12.dp
+            ),
+        contentAlignment = if (singleLine) Alignment.CenterStart else Alignment.TopStart
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = if (singleLine) Alignment.CenterVertically else Alignment.Top,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            if (leadingIcon != null) {
+                leadingIcon()
+            }
+            if (!prefixText.isNullOrEmpty()) {
+                Text(
+                    text = prefixText,
+                    style = MonoMetricStyle.copy(fontSize = 13.sp),
+                    color = colors.textMuted,
+                    maxLines = 1,
+                    softWrap = false
+                )
+            }
+            Box(
+                modifier = Modifier.weight(1f),
+                contentAlignment = if (singleLine) Alignment.CenterStart else Alignment.TopStart
+            ) {
+                if (value.isEmpty()) {
+                    Text(
+                        text = placeholder,
+                        style = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp),
+                        color = colors.textMuted.copy(alpha = 0.8f),
+                        maxLines = if (singleLine) 1 else 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                BasicTextField(
+                    value = value,
+                    onValueChange = onValueChange,
+                    singleLine = singleLine,
+                    minLines = minLines,
+                    maxLines = maxLines,
+                    keyboardOptions = keyboardOptions,
+                    textStyle = MaterialTheme.typography.bodyMedium.copy(
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = colors.textPrimary
+                    ),
+                    cursorBrush = SolidColor(colors.accentAmber),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .onFocusChanged { isFocused = it.isFocused }
+                )
+            }
+            if (trailingIcon != null) {
+                trailingIcon()
             }
         }
     }

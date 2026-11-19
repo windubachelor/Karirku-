@@ -3,31 +3,27 @@ package com.example.ui.screens
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.rounded.Add
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -35,15 +31,17 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.graphics.Color
 import com.example.data.ApplicationStatus
 import com.example.data.JobApplication
 import com.example.ui.components.ExpressiveEmptyStateCard
 import com.example.ui.components.JobApplicationCard
+import com.example.ui.components.KarirKuCompactTextField
 import com.example.ui.components.modernColoredShadow
 import com.example.ui.components.tactileClickable
 import com.example.ui.theme.KarirKuThemeTokens
@@ -89,22 +87,25 @@ fun LamaranScreen(
         item(key = "lamaran_header") {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = "DOSSIER LAMARAN",
                         style = MonoEyebrowStyle,
-                        color = colors.accentAmber
+                        color = colors.accentAmber,
+                        maxLines = 1
                     )
                     Text(
                         text = "Semua Lamaran",
                         style = MaterialTheme.typography.headlineLarge.copy(
                             fontFamily = UnboundedFontFamily,
-                            fontSize = 21.sp
+                            fontSize = 19.sp
                         ),
-                        color = colors.textPrimary
+                        color = colors.textPrimary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
 
@@ -125,75 +126,66 @@ fun LamaranScreen(
                         .testTag("lamaran_add_button")
                 ) {
                     Row(
-                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 11.dp),
+                        modifier = Modifier.padding(horizontal = 13.dp, vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
                             imageVector = Icons.Rounded.Add,
                             contentDescription = null,
                             tint = colors.accentAmber,
-                            modifier = Modifier.size(18.dp)
+                            modifier = Modifier.size(17.dp)
                         )
-                        Spacer(Modifier.width(6.dp))
+                        Spacer(Modifier.width(5.dp))
                         Text(
-                            "Tambah",
+                            text = "Tambah",
                             style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
-                            color = colors.heroOnDark
+                            color = colors.heroOnDark,
+                            maxLines = 1,
+                            softWrap = false
                         )
                     }
                 }
             }
         }
 
-        // Editorial Search Input with soft ambient shadow
+        // Sleek Modern Floating Search Pill
         item(key = "lamaran_search") {
-            OutlinedTextField(
+            KarirKuCompactTextField(
                 value = searchQuery,
                 onValueChange = onSearchQueryChange,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .modernColoredShadow(
-                        color = if (colors.isDark) Color.Black.copy(alpha = 0.38f) else Color(0xFF2B2118).copy(alpha = 0.08f),
-                        cornerRadius = 16.dp,
-                        blurRadius = 14.dp,
-                        offsetY = 6.dp
-                    )
-                    .testTag("lamaran_search_input"),
-                placeholder = {
-                    Text(
-                        text = "Cari peran, perusahaan, atau lokasi...",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = colors.textMuted
-                    )
-                },
+                placeholder = "Cari posisi, perusahaan, lokasi...",
+                cornerRadius = 24.dp,
+                containerColor = colors.cardSurface,
+                elevatedShadow = true,
                 leadingIcon = {
                     Icon(
                         imageVector = Icons.Outlined.Search,
                         contentDescription = null,
-                        tint = colors.textMuted
+                        tint = colors.accentAmber,
+                        modifier = Modifier.size(19.dp)
                     )
                 },
-                trailingIcon = {
-                    if (searchQuery.isNotEmpty()) {
-                        IconButton(onClick = { onSearchQueryChange("") }) {
+                trailingIcon = if (searchQuery.isNotEmpty()) {
+                    {
+                        Box(
+                            modifier = Modifier
+                                .size(28.dp)
+                                .clip(CircleShape)
+                                .clickable { onSearchQueryChange("") },
+                            contentAlignment = Alignment.Center
+                        ) {
                             Icon(
                                 imageVector = Icons.Outlined.Close,
                                 contentDescription = "Hapus pencarian",
-                                tint = colors.textMuted
+                                tint = colors.textMuted,
+                                modifier = Modifier.size(16.dp)
                             )
                         }
                     }
-                },
-                singleLine = true,
-                shape = RoundedCornerShape(16.dp),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedContainerColor = colors.cardSurface,
-                    unfocusedContainerColor = colors.cardSurface,
-                    focusedBorderColor = colors.textPrimary,
-                    unfocusedBorderColor = colors.borderSubtle,
-                    focusedTextColor = colors.textPrimary,
-                    unfocusedTextColor = colors.textPrimary
-                )
+                } else null,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("lamaran_search_input")
             )
         }
 

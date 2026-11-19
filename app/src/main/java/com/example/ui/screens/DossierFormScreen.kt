@@ -39,9 +39,6 @@ import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.LocationOn
 import androidx.compose.material.icons.outlined.UploadFile
 import androidx.compose.material.icons.rounded.CheckCircle
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -49,9 +46,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -84,7 +78,7 @@ import com.example.data.KarirKuFormatters
 import com.example.data.WorkMode
 import com.example.ui.components.AtmosphericDarkCard
 import com.example.ui.components.CompanyMonogramBadge
-import com.example.ui.components.PulsingStatusDot
+import com.example.ui.components.KarirKuCompactTextField
 import com.example.ui.components.TactileRaisedButton
 import com.example.ui.components.TactileRaisedCard
 import com.example.ui.components.modernColoredShadow
@@ -275,53 +269,67 @@ fun DossierFormScreen(
             }
         }
 
-        // Dark Editorial Header Card (Reference Screenshot 1)
+        // Dark Editorial Header Card (Clean non-wrapping top tags, redundant bottom bar removed)
         AtmosphericDarkCard(modifier = Modifier.fillMaxWidth()) {
             Column(
-                modifier = Modifier.padding(22.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                modifier = Modifier.padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(11.dp)
             ) {
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = colors.accentAmber.copy(alpha = 0.16f),
+                    border = BorderStroke(1.dp, colors.accentAmber.copy(alpha = 0.4f))
+                ) {
+                    Text(
+                        text = "[ PIPELINE ENTRY // 2026 ]",
+                        style = MonoEyebrowStyle.copy(fontSize = 10.sp),
+                        color = colors.accentAmber,
+                        maxLines = 1,
+                        softWrap = false,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+                    )
+                }
+
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = colors.accentAmber.copy(alpha = 0.16f),
-                        border = BorderStroke(1.dp, colors.accentAmber.copy(alpha = 0.4f))
+                        shape = RoundedCornerShape(6.dp),
+                        color = Color.White.copy(alpha = 0.08f)
                     ) {
                         Text(
-                            text = "[ PIPELINE ENTRY // 2026 ]",
-                            style = MonoEyebrowStyle,
-                            color = colors.accentAmber,
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+                            text = "DOSSIER FORM",
+                            style = MonoEyebrowStyle.copy(fontSize = 9.sp),
+                            color = colors.heroOnDarkMuted,
+                            maxLines = 1,
+                            softWrap = false,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                         )
                     }
-                    Text(
-                        text = dossierCode,
-                        style = MonoMetricStyle,
-                        color = colors.heroOnDarkMuted
-                    )
-                }
-
-                Surface(
-                    shape = RoundedCornerShape(6.dp),
-                    color = Color.White.copy(alpha = 0.08f)
-                ) {
-                    Text(
-                        text = "DOSSIER FORM",
-                        style = MonoEyebrowStyle.copy(fontSize = 9.sp),
-                        color = colors.heroOnDarkMuted,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                    )
+                    Surface(
+                        shape = RoundedCornerShape(6.dp),
+                        color = Color.White.copy(alpha = 0.07f),
+                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.12f))
+                    ) {
+                        Text(
+                            text = dossierCode,
+                            style = MonoMetricStyle.copy(fontSize = 11.sp),
+                            color = colors.heroOnDark.copy(alpha = 0.85f),
+                            maxLines = 1,
+                            softWrap = false,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                        )
+                    }
                 }
 
                 Text(
                     text = if (existingApplication == null) "Tambah &\nKelola Lamaran Kerja" else "Edit Dossier\nLamaran Kerja",
                     style = MaterialTheme.typography.displaySmall.copy(
                         fontFamily = UnboundedFontFamily,
-                        lineHeight = 29.sp
+                        fontSize = 22.sp,
+                        lineHeight = 28.sp
                     ),
                     color = colors.heroOnDark
                 )
@@ -331,34 +339,6 @@ fun DossierFormScreen(
                     style = MaterialTheme.typography.bodyMedium,
                     color = colors.heroOnDarkMuted
                 )
-
-                HorizontalDivider(color = Color.White.copy(alpha = 0.1f))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(5.dp)
-                    ) {
-                        PulsingStatusDot(
-                            color = colors.emeraldBright,
-                            size = 7.dp
-                        )
-                        Text(
-                            text = "Mode Input Dossier Aktif",
-                            style = MaterialTheme.typography.labelLarge.copy(fontSize = 12.sp),
-                            color = colors.heroOnDark
-                        )
-                    }
-                    Text(
-                        text = "Sinkronisasi Otomatis",
-                        style = MonoEyebrowStyle.copy(fontSize = 9.sp, letterSpacing = 0.3.sp),
-                        color = colors.heroOnDarkMuted
-                    )
-                }
             }
         }
 
@@ -391,16 +371,13 @@ fun DossierFormScreen(
                         style = MonoEyebrowStyle,
                         color = colors.textMuted
                     )
-                    OutlinedTextField(
+                    KarirKuCompactTextField(
                         value = roleTitle,
                         onValueChange = { roleTitle = it.take(120) },
-                        placeholder = { Text("Contoh: Senior UX Researcher") },
-                        singleLine = true,
+                        placeholder = "Senior UX Researcher",
                         modifier = Modifier
                             .fillMaxWidth()
-                            .testTag("form_role_title_input"),
-                        shape = RoundedCornerShape(14.dp),
-                        colors = dossierFieldColors()
+                            .testTag("form_role_title_input")
                     )
                 }
 
@@ -415,23 +392,25 @@ fun DossierFormScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        OutlinedTextField(
+                        KarirKuCompactTextField(
                             value = companyName,
                             onValueChange = { companyName = it.take(120) },
-                            placeholder = { Text("Contoh: Tokopedia Indonesia") },
+                            placeholder = "Tokopedia Indonesia",
                             trailingIcon = {
-                                Icon(Icons.Outlined.Business, contentDescription = null, tint = colors.textMuted)
+                                Icon(
+                                    imageVector = Icons.Outlined.Business,
+                                    contentDescription = null,
+                                    tint = colors.textMuted,
+                                    modifier = Modifier.size(18.dp)
+                                )
                             },
-                            singleLine = true,
                             modifier = Modifier
                                 .weight(1f)
-                                .testTag("form_company_name_input"),
-                            shape = RoundedCornerShape(14.dp),
-                            colors = dossierFieldColors()
+                                .testTag("form_company_name_input")
                         )
                         CompanyMonogramBadge(
                             companyName = companyName.ifBlank { "KRK" },
-                            size = 52.dp
+                            size = 48.dp
                         )
                     }
                 }
@@ -442,19 +421,21 @@ fun DossierFormScreen(
                         style = MonoEyebrowStyle,
                         color = colors.textMuted
                     )
-                    OutlinedTextField(
+                    KarirKuCompactTextField(
                         value = location,
                         onValueChange = { location = it.take(100) },
-                        placeholder = { Text("Contoh: Jakarta Selatan / Remote Indonesia") },
+                        placeholder = "Jakarta Selatan / Remote",
                         trailingIcon = {
-                            Icon(Icons.Outlined.LocationOn, contentDescription = null, tint = colors.textMuted)
+                            Icon(
+                                imageVector = Icons.Outlined.LocationOn,
+                                contentDescription = null,
+                                tint = colors.textMuted,
+                                modifier = Modifier.size(18.dp)
+                            )
                         },
-                        singleLine = true,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .testTag("form_location_input"),
-                        shape = RoundedCornerShape(14.dp),
-                        colors = dossierFieldColors()
+                            .testTag("form_location_input")
                     )
                 }
             }
@@ -522,9 +503,9 @@ fun DossierFormScreen(
                                     border = BorderStroke(1.dp, border)
                                 ) {
                                     Row(
-                                        modifier = Modifier.padding(horizontal = 12.dp),
+                                        modifier = Modifier.padding(horizontal = 10.dp),
                                         verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        horizontalArrangement = Arrangement.spacedBy(7.dp)
                                     ) {
                                         Box(
                                             modifier = Modifier
@@ -533,12 +514,14 @@ fun DossierFormScreen(
                                                 .background(dotColor)
                                         )
                                         Text(
-                                            text = st.label,
+                                            text = st.shortLabel,
                                             style = MaterialTheme.typography.titleSmall.copy(
+                                                fontSize = 13.sp,
                                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
                                             ),
                                             color = textCol,
                                             maxLines = 1,
+                                            softWrap = false,
                                             overflow = TextOverflow.Ellipsis
                                         )
                                     }
@@ -592,32 +575,26 @@ fun DossierFormScreen(
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text("BATAS BAWAH (MIN)", style = MonoEyebrowStyle, color = colors.textMuted)
-                        OutlinedTextField(
+                        Text("BATAS BAWAH (MIN)", style = MonoEyebrowStyle, color = colors.textMuted, maxLines = 1)
+                        KarirKuCompactTextField(
                             value = salaryMinText,
                             onValueChange = { salaryMinText = it.filter { ch -> ch.isDigit() }.take(10) },
-                            prefix = { Text("Rp ", style = MonoMetricStyle, color = colors.textMuted) },
-                            placeholder = { Text("15000000") },
+                            prefixText = "Rp",
+                            placeholder = "15000000",
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            singleLine = true,
-                            shape = RoundedCornerShape(14.dp),
-                            colors = dossierFieldColors(),
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .testTag("form_salary_min_input")
                         )
                     }
                     Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text("BATAS ATAS (MAX)", style = MonoEyebrowStyle, color = colors.textMuted)
-                        OutlinedTextField(
+                        Text("BATAS ATAS (MAX)", style = MonoEyebrowStyle, color = colors.textMuted, maxLines = 1)
+                        KarirKuCompactTextField(
                             value = salaryMaxText,
                             onValueChange = { salaryMaxText = it.filter { ch -> ch.isDigit() }.take(10) },
-                            prefix = { Text("Rp ", style = MonoMetricStyle, color = colors.textMuted) },
-                            placeholder = { Text("25000000") },
+                            prefixText = "Rp",
+                            placeholder = "25000000",
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            singleLine = true,
-                            shape = RoundedCornerShape(14.dp),
-                            colors = dossierFieldColors(),
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .testTag("form_salary_max_input")
@@ -673,21 +650,26 @@ fun DossierFormScreen(
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
                             text = "Target Ideal: ${KarirKuFormatters.formatIdrFull(idealTarget)}",
                             style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                            color = colors.textPrimary
+                            color = colors.textPrimary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f)
                         )
                         if (expectedSalaryBaseline > 0L && idealTarget > 0L) {
                             val diffPct = (((idealTarget - expectedSalaryBaseline) * 100L) / expectedSalaryBaseline).toInt()
-                            val badgeText = if (diffPct >= 0) "+$diffPct% vs targetmu" else "$diffPct% vs targetmu"
+                            val badgeText = if (diffPct >= 0) "+$diffPct%" else "$diffPct%"
                             Text(
                                 text = badgeText,
                                 style = MonoMetricStyle.copy(fontSize = 11.sp),
-                                color = if (diffPct >= 0) colors.accentEmerald else colors.accentAmber
+                                color = if (diffPct >= 0) colors.accentEmerald else colors.accentAmber,
+                                maxLines = 1,
+                                softWrap = false
                             )
                         }
                     }
@@ -744,23 +726,14 @@ fun DossierFormScreen(
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text("CATATAN & TANGGUNG JAWAB", style = MonoEyebrowStyle, color = colors.textMuted)
-                        Text("PLAIN / MARKDOWN", style = MonoEyebrowStyle.copy(fontSize = 9.sp), color = colors.textMuted)
-                    }
-                    OutlinedTextField(
+                    Text("CATATAN & TANGGUNG JAWAB", style = MonoEyebrowStyle, color = colors.textMuted)
+                    KarirKuCompactTextField(
                         value = notes,
                         onValueChange = { notes = it.take(3000) },
-                        placeholder = {
-                            Text("Tanggung jawab utama, highlight riset, atau pertanyaan untuk interviewer...")
-                        },
-                        minLines = 4,
-                        maxLines = 8,
-                        shape = RoundedCornerShape(14.dp),
-                        colors = dossierFieldColors(),
+                        placeholder = "Tanggung jawab utama, poin riset, atau catatan wawancara...",
+                        singleLine = false,
+                        minLines = 3,
+                        maxLines = 7,
                         modifier = Modifier
                             .fillMaxWidth()
                             .testTag("form_notes_input")
@@ -769,13 +742,10 @@ fun DossierFormScreen(
 
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text("KONTAK HRD / RECRUITER", style = MonoEyebrowStyle, color = colors.textMuted)
-                    OutlinedTextField(
+                    KarirKuCompactTextField(
                         value = hrContact,
                         onValueChange = { hrContact = it.take(200) },
-                        placeholder = { Text("Nama HRD, email, atau LinkedIn") },
-                        singleLine = true,
-                        shape = RoundedCornerShape(14.dp),
-                        colors = dossierFieldColors(),
+                        placeholder = "Nama HRD, email, atau LinkedIn",
                         modifier = Modifier
                             .fillMaxWidth()
                             .testTag("form_hr_contact_input")
@@ -1022,36 +992,45 @@ private fun DossierFormSectionCard(
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                Surface(
+                    shape = RoundedCornerShape(9.dp),
+                    color = colors.amberSoftBg.copy(alpha = if (colors.isDark) 0.4f else 0.7f),
+                    border = BorderStroke(1.dp, colors.accentAmber.copy(alpha = 0.3f))
                 ) {
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = colors.recessedSurface,
-                        border = BorderStroke(1.dp, colors.borderSubtle)
-                    ) {
-                        Text(
-                            text = number,
-                            style = MonoMetricStyle.copy(fontSize = 11.sp),
-                            color = colors.accentAmber,
-                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
-                        )
-                    }
                     Text(
-                        text = title,
-                        style = MaterialTheme.typography.titleLarge,
-                        color = colors.textPrimary
+                        text = number,
+                        style = MonoMetricStyle.copy(fontSize = 11.5.sp),
+                        color = colors.accentAmber,
+                        maxLines = 1,
+                        softWrap = false,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp)
                     )
                 }
-                Text(
-                    text = rightTag,
-                    style = MonoEyebrowStyle.copy(fontSize = 9.sp),
-                    color = colors.textMuted
-                )
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(1.dp)
+                ) {
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 16.sp
+                        ),
+                        color = colors.textPrimary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = rightTag,
+                        style = MonoEyebrowStyle.copy(fontSize = 9.sp, letterSpacing = 0.5.sp),
+                        color = colors.textMuted,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
             }
             HorizontalDivider(color = colors.borderSubtle.copy(alpha = 0.7f))
             content()
@@ -1102,11 +1081,11 @@ private fun DateSelectorField(
 ) {
     val colors = KarirKuThemeTokens.colors
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text(label, style = MonoEyebrowStyle, color = colors.textMuted)
+        Text(label, style = MonoEyebrowStyle, color = colors.textMuted, maxLines = 1)
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(52.dp)
+                .height(48.dp)
                 .clip(RoundedCornerShape(14.dp))
                 .clickable(onClick = onClick),
             shape = RoundedCornerShape(14.dp),
@@ -1120,8 +1099,10 @@ private fun DateSelectorField(
             ) {
                 Text(
                     text = KarirKuFormatters.formatDateShort(dateMillis),
-                    style = MonoMetricStyle,
-                    color = colors.textPrimary
+                    style = MonoMetricStyle.copy(fontSize = 12.sp),
+                    color = colors.textPrimary,
+                    maxLines = 1,
+                    softWrap = false
                 )
                 Icon(
                     imageVector = Icons.Outlined.CalendarToday,
@@ -1133,16 +1114,6 @@ private fun DateSelectorField(
         }
     }
 }
-
-@Composable
-private fun dossierFieldColors() = OutlinedTextFieldDefaults.colors(
-    focusedContainerColor = KarirKuThemeTokens.colors.recessedSurface,
-    unfocusedContainerColor = KarirKuThemeTokens.colors.recessedSurface,
-    focusedBorderColor = KarirKuThemeTokens.colors.textPrimary,
-    unfocusedBorderColor = KarirKuThemeTokens.colors.borderSubtle,
-    focusedTextColor = KarirKuThemeTokens.colors.textPrimary,
-    unfocusedTextColor = KarirKuThemeTokens.colors.textPrimary
-)
 
 private fun resolveDocumentDisplayMeta(context: Context, uri: Uri): String {
     var name = "Dokumen_Lampiran.pdf"
