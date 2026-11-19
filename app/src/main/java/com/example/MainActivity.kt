@@ -79,6 +79,7 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.example.auth.AuthScreen
 import com.example.auth.authStateFlow
+import com.example.auth.consumePendingSignUpDisplayName
 import com.example.auth.signOutUser
 import com.example.data.KarirKuRepository
 import com.example.ui.components.DossierDetailBottomSheet
@@ -158,7 +159,10 @@ private fun AuthenticatedKarirKuShell(user: FirebaseUser) {
                 KarirKuViewModel(
                     repository = KarirKuRepository(db),
                     currentUserId = user.uid,
-                    initialDisplayName = user.displayName ?: "Pengguna KarirKu",
+                    initialDisplayName = consumePendingSignUpDisplayName()
+                        ?: user.displayName?.takeIf { it.isNotBlank() }
+                        ?: user.email?.substringBefore("@")?.takeIf { it.isNotBlank() }
+                        ?: "Pengguna KarirKu",
                     initialPhotoUrl = user.photoUrl?.toString()
                 )
             }

@@ -16,9 +16,11 @@ import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential.Companion.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL
 import com.google.firebase.Firebase
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.FirebaseAuthException
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.auth.GoogleAuthProvider
 import com.google.firebase.auth.auth
+import com.google.firebase.auth.userProfileChangeRequest
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.channels.awaitClose
@@ -29,6 +31,15 @@ import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
 
 private const val AUTH_TAG = "KarirKuAuth"
+
+@Volatile
+private var pendingSignUpDisplayName: String? = null
+
+fun consumePendingSignUpDisplayName(): String? {
+    val name = pendingSignUpDisplayName
+    pendingSignUpDisplayName = null
+    return name?.takeIf { it.isNotBlank() }
+}
 
 internal fun FirebaseAuth.authStateFlow(): Flow<FirebaseUser?> = callbackFlow {
     val listener = FirebaseAuth.AuthStateListener { firebaseAuth ->
@@ -132,6 +143,122 @@ fun onGoogleSignInClicked(
             Log.e(AUTH_TAG, "Google Sign-In failed", e)
             onAuthError(e.localizedMessage ?: "Gagal masuk dengan Google. Silakan coba lagi.")
         }
+    }
+}
+
+fun signInWithEmailPassword(
+    email: String,
+    password: String,
+    onAuthSuccess: () -> Unit,
+    onAuthError: (String) -> Unit,
+    scope: CoroutineScope
+) {
+    val trimmedEmail = email.trim()
+    if (trimmedEmail.isEmpty() || !android.util.Patterns.EMAIL_ADDRESS.matcher(trimmedEmail).matches()) {
+        onAuthError("Masukkan alamat email yang valid.")
+        return
+    }
+    if (password.length < 6) {
+        onAuthError("Kata sandi minimal terdiri dari 6 karakter.")
+        return
+    }
+
+    scope.launch {
+        try {
+            Firebase.auth.signInWithEmailAndPassword(trimmedEmail, password).await()
+            onAuthSuccess()
+        } catch (e: Exception) {
+            Log.e(AUTH_TAG, "Email/Password sign-in failed", e)
+            onAuthError(mapFirebaseAuthError(e))
+        }
+    }
+}
+
+fun signUpWithEmailPassword(
+    fullName: String,
+    email: String,
+    password: String,
+    confirmPassword: String,
+    onAuthSuccess: () -> Unit,
+    onAuthError: (String) -> Unit,
+    scope: CoroutineScope
+) {
+    val trimmedName = fullName.trim()
+    val trimmedEmail = email.trim()
+    if (trimmedName.length < 2) {
+        onAuthError("Masukkan nama lengkap minimal 2 karakter.")
+        return
+    }
+    if (trimmedEmail.isEmpty() || !android.util.Patterns.EMAIL_ADDRESS.matcher(trimmedEmail).matches()) {
+        onAuthError("Masukkan alamat email yang valid.")
+        return
+    }
+    if (password.length < 6) {
+        onAuthError("Kata sandi minimal terdiri dari 6 karakter.")
+        return
+    }
+    if (password != confirmPassword) {
+        onAuthError("Konfirmasi kata sandi tidak cocok.")
+        return
+    }
+
+    scope.launch {
+        pendingSignUpDisplayName = trimmedName
+        try {
+            val result = Firebase.auth.createUserWithEmailAndPassword(trimmedEmail, password).await()
+            result.user?.let { user ->
+                try {
+                    val profileUpdates = userProfileChangeRequest {
+                        displayName = trimmedName
+                    }
+                    user.updateProfile(profileUpdates).await()
+                } catch (profileErr: Exception) {
+                    Log.w(AUTH_TAG, "Failed to update displayName after sign-up: ${profileErr.message}")
+                }
+            }
+            onAuthSuccess()
+        } catch (e: Exception) {
+            pendingSignUpDisplayName = null
+            Log.e(AUTH_TAG, "Email/Password sign-up failed", e)
+            onAuthError(mapFirebaseAuthError(e))
+        }
+    }
+}
+
+fun sendPasswordReset(
+    email: String,
+    onResetSent: (String) -> Unit,
+    onResetError: (String) -> Unit,
+    scope: CoroutineScope
+) {
+    val trimmedEmail = email.trim()
+    if (trimmedEmail.isEmpty() || !android.util.Patterns.EMAIL_ADDRESS.matcher(trimmedEmail).matches()) {
+        onResetError("Isi alamat email yang valid terlebih dahulu untuk reset kata sandi.")
+        return
+    }
+    scope.launch {
+        try {
+            Firebase.auth.sendPasswordResetEmail(trimmedEmail).await()
+            onResetSent("Tautan reset kata sandi telah dikirim ke $trimmedEmail.")
+        } catch (e: Exception) {
+            Log.e(AUTH_TAG, "Password reset failed", e)
+            onResetError(mapFirebaseAuthError(e))
+        }
+    }
+}
+
+private fun mapFirebaseAuthError(e: Exception): String {
+    val code = (e as? FirebaseAuthException)?.errorCode
+    return when (code) {
+        "ERROR_INVALID_EMAIL" -> "Format alamat email tidak valid."
+        "ERROR_WRONG_PASSWORD", "ERROR_INVALID_CREDENTIAL" -> "Email atau kata sandi salah. Periksa kembali atau daftar akun baru."
+        "ERROR_USER_NOT_FOUND" -> "Akun dengan email tersebut belum terdaftar. Silakan pilih tab Daftar."
+        "ERROR_EMAIL_ALREADY_IN_USE" -> "Email ini sudah terdaftar. Silakan pindah ke tab Masuk."
+        "ERROR_WEAK_PASSWORD" -> "Kata sandi terlalu lemah. Gunakan minimal 6 karakter."
+        "ERROR_USER_DISABLED" -> "Akun ini telah dinonaktifkan."
+        "ERROR_TOO_MANY_REQUESTS" -> "Terlalu banyak percobaan. Silakan tunggu sebentar lalu coba lagi."
+        "ERROR_OPERATION_NOT_ALLOWED" -> "Login Email/Password belum diaktifkan di Firebase Console untuk proyek ini."
+        else -> e.localizedMessage ?: "Autentikasi gagal. Periksa koneksi internet dan coba lagi."
     }
 }
 

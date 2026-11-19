@@ -651,7 +651,7 @@ fun ProfilScreen(
                                     .padding(vertical = 12.dp),
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
-                                Text("Akun Google", style = MaterialTheme.typography.bodySmall, color = colors.textMuted)
+                                Text("Email Akun", style = MaterialTheme.typography.bodySmall, color = colors.textMuted)
                                 Text(
                                     text = userEmail,
                                     style = MonoMetricStyle.copy(fontSize = 11.sp),
