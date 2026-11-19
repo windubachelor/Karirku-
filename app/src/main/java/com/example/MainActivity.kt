@@ -119,10 +119,10 @@ private enum class KarirKuTab(
     val selectedIcon: ImageVector,
     val unselectedIcon: ImageVector
 ) {
-    BERANDA("beranda", "Beranda", "EDITORIAL DOSSIER", Icons.Filled.Explore, Icons.Outlined.Explore),
-    LAMARAN("lamaran", "Lamaran", "PIPELINE BERKAS", Icons.Filled.Work, Icons.Outlined.WorkOutline),
+    BERANDA("beranda", "Beranda", "CATATAN KARIER", Icons.Filled.Explore, Icons.Outlined.Explore),
+    LAMARAN("lamaran", "Lamaran", "DAFTAR LAMARAN", Icons.Filled.Work, Icons.Outlined.WorkOutline),
     JADWAL("jadwal", "Jadwal", "AGENDA INTERVIEW", Icons.Filled.CalendarMonth, Icons.Outlined.CalendarMonth),
-    PROFIL("profil", "Profil", "DOSSIER PELAMAR", Icons.Filled.Person, Icons.Outlined.Person)
+    PROFIL("profil", "Profil", "PROFIL KARIER", Icons.Filled.Person, Icons.Outlined.Person)
 }
 
 @Composable
@@ -332,7 +332,7 @@ private fun AuthenticatedKarirKuShell(user: FirebaseUser) {
                                             CircularProgressIndicator(color = colors.textPrimary)
                                             Spacer(Modifier.height(12.dp))
                                             Text(
-                                                text = "MEMUAT DOSSIER...",
+                                                text = "MEMUAT DATA...",
                                                 style = MonoEyebrowStyle,
                                                 color = colors.textMuted
                                             )
@@ -447,8 +447,8 @@ private fun AuthenticatedKarirKuShell(user: FirebaseUser) {
         if (pendingDeleteAppId != null) {
             AlertDialog(
                 onDismissRequest = { pendingDeleteAppId = null },
-                title = { Text("Hapus Dossier Lamaran?") },
-                text = { Text("Data lamaran ini akan dihapus secara permanen dari pipeline KarirKu.") },
+                title = { Text("Hapus Lamaran Ini?") },
+                text = { Text("Data lamaran ini akan dihapus secara permanen dari catatan KarirKu.") },
                 confirmButton = {
                     TextButton(
                         onClick = {

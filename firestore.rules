@@ -69,6 +69,7 @@ service cloud.firestore {
              data.notes is string && data.notes.size() <= 3000 &&
              data.hrContact is string && data.hrContact.size() <= 200 &&
              isValidStringList(data.attachments, 10) &&
+             (!('stageHistory' in data) || isValidStringList(data.stageHistory, 30)) &&
              data.starred is bool &&
              data.createdAt is timestamp && data.createdAt <= request.time &&
              data.updatedAt is timestamp && data.updatedAt <= request.time;
@@ -165,7 +166,7 @@ service cloud.firestore {
                            'location', 'status', 'workMode', 'contractType',
                            'salaryMin', 'salaryMax', 'appliedDateMillis',
                            'targetResponseMillis', 'notes', 'hrContact',
-                           'attachments', 'starred', 'createdAt', 'updatedAt'
+                           'attachments', 'stageHistory', 'starred', 'createdAt', 'updatedAt'
                          ]) &&
                          isValidJobApplication(incoming(), userId);
 
@@ -178,11 +179,12 @@ service cloud.firestore {
                          (
                            incoming().diff(existing()).affectedKeys().hasOnly(['starred', 'updatedAt']) ||
                            incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']) ||
+                           incoming().diff(existing()).affectedKeys().hasOnly(['status', 'stageHistory', 'updatedAt']) ||
                            incoming().diff(existing()).affectedKeys().hasOnly([
                              'roleTitle', 'companyName', 'location', 'status',
                              'workMode', 'contractType', 'salaryMin', 'salaryMax',
                              'appliedDateMillis', 'targetResponseMillis', 'notes',
-                             'hrContact', 'attachments', 'starred', 'updatedAt'
+                             'hrContact', 'attachments', 'stageHistory', 'starred', 'updatedAt'
                            ])
                          );
 

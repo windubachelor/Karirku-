@@ -261,7 +261,7 @@ fun BerandaScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = "DOSSIER KARIER AKTIF",
+                                text = "SIAP MELANGKAH",
                                 style = MonoEyebrowStyle,
                                 color = colors.heroOnDarkMuted.copy(alpha = 0.75f)
                             )
@@ -275,7 +275,7 @@ fun BerandaScreen(
                                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                                 ) {
                                     Text(
-                                        text = "Timeline",
+                                        text = "Lihat Jadwal",
                                         style = MaterialTheme.typography.labelLarge.copy(fontSize = 12.sp),
                                         color = colors.heroOnDark
                                     )
@@ -330,7 +330,7 @@ fun BerandaScreen(
                             modifier = Modifier.weight(1f)
                         )
                         QuickActionTile(
-                            label = "Dossier",
+                            label = "Portofolio",
                             icon = Icons.Rounded.FolderSpecial,
                             iconColor = colors.textPrimary,
                             bgColor = colors.recessedSurface,
@@ -368,14 +368,14 @@ fun BerandaScreen(
                                         .background(colors.accentAmber)
                                 )
                                 Text(
-                                    text = "ARSITEKTUR ALUR",
+                                    text = "RINGKASAN PROGRES",
                                     style = MonoEyebrowStyle,
                                     color = colors.accentAmber,
                                     maxLines = 1
                                 )
                             }
                             Text(
-                                text = "Pipeline Seleksi",
+                                text = "Progres Lamaran",
                                 style = MaterialTheme.typography.headlineLarge.copy(
                                     fontFamily = UnboundedFontFamily,
                                     fontSize = 20.sp
@@ -404,7 +404,7 @@ fun BerandaScreen(
                                         .background(colors.accentEmerald)
                                 )
                                 Text(
-                                    text = "${metrics.totalCount} Berkas",
+                                    text = "${metrics.totalCount} Lamaran",
                                     style = MonoMetricStyle.copy(fontSize = 11.sp),
                                     color = colors.textPrimary,
                                     maxLines = 1,
@@ -420,7 +420,7 @@ fun BerandaScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "Tahapan & Rasio Konversi Aktif",
+                            text = "Pantau tahap lamaranmu sekarang",
                             style = MaterialTheme.typography.bodySmall,
                             color = colors.textMuted,
                             maxLines = 1,
@@ -718,7 +718,7 @@ fun BerandaScreen(
                         label = "WISHLIST",
                         count = metrics.savedCount,
                         percent = (metrics.savedCount * 100) / safeTotal,
-                        subtitle = "Arsip target",
+                        subtitle = "Simpan dulu",
                         stripeColor = colors.accentAmber,
                         onClick = { onSelectFilter(ApplicationStatus.DISIMPAN) },
                         modifier = Modifier
@@ -772,7 +772,7 @@ fun BerandaScreen(
                 ) {
                     Column {
                         Text(
-                            text = "Aktivitas Lamaran Terbaru",
+                            text = "Lamaran Terbaru",
                             style = MaterialTheme.typography.headlineSmall.copy(
                                 fontWeight = FontWeight.ExtraBold
                             ),
@@ -814,13 +814,13 @@ fun BerandaScreen(
             if (filteredApps.isEmpty()) {
                 item(key = "empty_feed") {
                     ExpressiveEmptyStateCard(
-                        eyebrow = if (selectedFilter == null) "DOSSIER MASIH KOSONG" else "TIDAK ADA DI TAHAP INI",
+                        eyebrow = if (selectedFilter == null) "BELUM ADA LAMARAN" else "TIDAK ADA DI TAHAP INI",
                         title = if (selectedFilter == null) "Mulai Catat Lamaran Pertamamu" else "Belum Ada Lamaran ${selectedFilter.shortLabel}",
                         description = if (selectedFilter == null)
-                            "Dokumentasikan posisi impian, rentang gaji, status seleksi, dan kontak HRD dalam satu pipeline yang rapi."
+                            "Catat lowongan incaranmu lengkap dengan estimasi gaji, status seleksi, dan kontak HRD di satu tempat."
                         else
-                            "Ketuk tombol di bawah untuk menambah lamaran baru atau reset filter untuk melihat semua berkas.",
-                        ctaLabel = if (selectedFilter == null) "+ Catat Lamaran Pertama" else "Lihat Semua Lamaran",
+                            "Ketuk tombol di bawah untuk menambah lamaran baru atau reset filter untuk melihat semua lamaran.",
+                        ctaLabel = if (selectedFilter == null) "+ Tambah Lamaran Pertama" else "Lihat Semua Lamaran",
                         onCtaClick = {
                             if (selectedFilter == null) onAddApplicationClick() else onSelectFilter(null)
                         }
@@ -874,7 +874,7 @@ fun BerandaScreen(
                 }
                 Spacer(Modifier.width(10.dp))
                 Text(
-                    text = "CATAT LAMARAN",
+                    text = "TAMBAH LAMARAN",
                     style = MaterialTheme.typography.labelLarge.copy(
                         fontFamily = UnboundedFontFamily,
                         fontWeight = FontWeight.Bold,
@@ -992,12 +992,12 @@ private fun FunnelRatioCard(metrics: PipelineMetrics) {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "Rasio Funnel Berkas",
+                    text = "Sebaran Tahap Lamaran",
                     style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
                     color = colors.textPrimary
                 )
                 Text(
-                    text = "Pembaruan Realtime",
+                    text = "Otomatis",
                     style = MonoEyebrowStyle.copy(fontSize = 9.sp, letterSpacing = 0.3.sp),
                     color = colors.textMuted
                 )

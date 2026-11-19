@@ -26,15 +26,19 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material.icons.outlined.WorkOutline
@@ -72,6 +76,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -81,6 +86,7 @@ import coil.compose.AsyncImage
 import com.example.data.ApplicationStatus
 import com.example.data.JobApplication
 import com.example.data.KarirKuFormatters
+import com.example.data.StageHistoryEvent
 import com.example.ui.theme.KarirKuThemeTokens
 import com.example.ui.theme.MonoEyebrowStyle
 import com.example.ui.theme.MonoMetricStyle
@@ -769,9 +775,14 @@ fun DossierDetailBottomSheet(
         contentColor = colors.textPrimary,
         shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
     ) {
+        val timelineEvents = remember(application.stageHistory, application.status, application.updatedAt) {
+            application.parsedTimeline()
+        }
+
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp)
                 .padding(bottom = 28.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -784,7 +795,7 @@ fun DossierDetailBottomSheet(
                 CompanyMonogramBadge(companyName = application.companyName, size = 50.dp)
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = application.dossierCode.ifBlank { "#DOSSIER" },
+                        text = application.dossierCode.ifBlank { "#LAMARAN" },
                         style = MonoEyebrowStyle,
                         color = colors.accentAmber
                     )
@@ -805,7 +816,7 @@ fun DossierDetailBottomSheet(
             // Quick stage progression pills
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
-                    text = "PERBARUI TAHAP PIPELINE",
+                    text = "UBAH STATUS LAMARAN",
                     style = MonoEyebrowStyle,
                     color = colors.textMuted
                 )
@@ -828,7 +839,7 @@ fun DossierDetailBottomSheet(
                             )
                         ) {
                             Text(
-                                text = st.label,
+                                text = st.shortLabel,
                                 style = MaterialTheme.typography.labelLarge.copy(fontSize = 12.sp),
                                 color = if (selected) colors.heroOnDark else colors.textSecondary,
                                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
@@ -855,7 +866,7 @@ fun DossierDetailBottomSheet(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "Kompensasi",
+                            text = "Estimasi Gaji",
                             style = MaterialTheme.typography.bodySmall,
                             color = colors.textMuted
                         )
@@ -875,7 +886,7 @@ fun DossierDetailBottomSheet(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "Model Kerja",
+                            text = "Sistem Kerja",
                             style = MaterialTheme.typography.bodySmall,
                             color = colors.textMuted
                         )
@@ -907,7 +918,7 @@ fun DossierDetailBottomSheet(
                                 verticalArrangement = Arrangement.spacedBy(2.dp)
                             ) {
                                 Text(
-                                    text = "DILAMAR",
+                                    text = "TANGGAL LAMAR",
                                     style = MonoEyebrowStyle.copy(fontSize = 8.5.sp),
                                     color = colors.textMuted,
                                     maxLines = 1
@@ -932,7 +943,7 @@ fun DossierDetailBottomSheet(
                                 verticalArrangement = Arrangement.spacedBy(2.dp)
                             ) {
                                 Text(
-                                    text = "TARGET RESPON",
+                                    text = "TARGET KABAR",
                                     style = MonoEyebrowStyle.copy(fontSize = 8.5.sp),
                                     color = colors.accentAmber,
                                     maxLines = 1
@@ -973,9 +984,54 @@ fun DossierDetailBottomSheet(
                 }
             }
 
+            // Timeline Riwayat Section (Status Progression History)
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("application_timeline_section"),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.History,
+                        contentDescription = null,
+                        tint = colors.accentAmber,
+                        modifier = Modifier.size(15.dp)
+                    )
+                    Text(
+                        text = "TIMELINE RIWAYAT",
+                        style = MonoEyebrowStyle,
+                        color = colors.textMuted
+                    )
+                }
+
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    color = colors.recessedSurface.copy(alpha = 0.72f),
+                    border = BorderStroke(1.dp, colors.borderSubtle.copy(alpha = 0.65f))
+                ) {
+                    Column(
+                        modifier = Modifier.padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(0.dp)
+                    ) {
+                        timelineEvents.forEachIndexed { index, event ->
+                            TimelineHistoryRow(
+                                event = event,
+                                isLatest = index == 0,
+                                isLast = index == timelineEvents.lastIndex
+                            )
+                        }
+                    }
+                }
+            }
+
             if (application.notes.isNotBlank()) {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("CATATAN DOSSIER", style = MonoEyebrowStyle, color = colors.textMuted)
+                    Text("CATATAN LAMARAN", style = MonoEyebrowStyle, color = colors.textMuted)
                     Text(
                         text = application.notes,
                         style = MaterialTheme.typography.bodyMedium,
@@ -1030,7 +1086,7 @@ fun DossierDetailBottomSheet(
                     Icon(Icons.Outlined.Edit, contentDescription = null, modifier = Modifier.size(16.dp))
                     Spacer(Modifier.width(6.dp))
                     Text(
-                        text = "Edit Dossier",
+                        text = "Edit Lamaran",
                         style = MaterialTheme.typography.labelLarge.copy(fontSize = 13.sp),
                         maxLines = 1,
                         softWrap = false,
@@ -1083,6 +1139,94 @@ fun DossierDetailBottomSheet(
     }
 }
 
+@Composable
+private fun TimelineHistoryRow(
+    event: StageHistoryEvent,
+    isLatest: Boolean,
+    isLast: Boolean
+) {
+    val colors = KarirKuThemeTokens.colors
+    val dotColor = when (event.status) {
+        ApplicationStatus.INTERVIEW -> colors.accentAmber
+        ApplicationStatus.OFFER -> colors.accentEmerald
+        ApplicationStatus.ADMINISTRASI -> colors.accentBlue
+        ApplicationStatus.DITOLAK -> colors.accentCrimson
+        ApplicationStatus.DILAMAR -> colors.textPrimary
+        ApplicationStatus.DISIMPAN -> colors.textMuted
+    }
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.Top
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.width(16.dp)
+        ) {
+            Spacer(Modifier.height(4.dp))
+            if (isLatest) {
+                PulsingStatusDot(color = dotColor, size = 9.dp)
+            } else {
+                Box(
+                    modifier = Modifier
+                        .size(8.dp)
+                        .clip(CircleShape)
+                        .background(dotColor.copy(alpha = 0.65f))
+                )
+            }
+            if (!isLast) {
+                Box(
+                    modifier = Modifier
+                        .padding(top = 4.dp)
+                        .width(1.5.dp)
+                        .height(32.dp)
+                        .background(colors.borderSubtle)
+                )
+            }
+        }
+
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .padding(bottom = if (isLast) 0.dp else 12.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = event.status.shortLabel,
+                    style = MaterialTheme.typography.titleSmall.copy(
+                        fontWeight = if (isLatest) FontWeight.ExtraBold else FontWeight.SemiBold,
+                        fontSize = 13.sp
+                    ),
+                    color = if (isLatest) colors.textPrimary else colors.textSecondary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
+                )
+                Text(
+                    text = KarirKuFormatters.formatDateTimeShort(event.timestampMillis),
+                    style = MonoEyebrowStyle.copy(fontSize = 9.sp, letterSpacing = 0.1.sp),
+                    color = colors.textMuted,
+                    maxLines = 1,
+                    softWrap = false
+                )
+            }
+            Text(
+                text = event.note,
+                style = MaterialTheme.typography.bodySmall,
+                color = colors.textMuted,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}
+
 /**
  * Sleek, compact, single-line or multiline input field with crisp focus border animation
  * and guaranteed single-line placeholder ellipsis (eliminates Material OutlinedTextField height bloat).
@@ -1102,6 +1246,9 @@ fun KarirKuCompactTextField(
     cornerRadius: Dp = 14.dp,
     containerColor: Color = KarirKuThemeTokens.colors.recessedSurface,
     keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
+    keyboardActions: KeyboardActions = KeyboardActions.Default,
+    visualTransformation: VisualTransformation = VisualTransformation.None,
+    enabled: Boolean = true,
     elevatedShadow: Boolean = false
 ) {
     val colors = KarirKuThemeTokens.colors
@@ -1125,10 +1272,10 @@ fun KarirKuCompactTextField(
                 } else Modifier
             )
             .then(
-                if (singleLine) Modifier.height(48.dp) else Modifier.heightIn(min = 96.dp)
+                if (singleLine) Modifier.height(48.dp) else Modifier.heightIn(min = 92.dp)
             )
             .clip(shape)
-            .background(containerColor)
+            .background(if (enabled) containerColor else containerColor.copy(alpha = 0.6f))
             .border(
                 width = if (isFocused) 1.5.dp else 1.dp,
                 color = borderColor,
@@ -1173,14 +1320,17 @@ fun KarirKuCompactTextField(
                 BasicTextField(
                     value = value,
                     onValueChange = onValueChange,
+                    enabled = enabled,
                     singleLine = singleLine,
                     minLines = minLines,
                     maxLines = maxLines,
                     keyboardOptions = keyboardOptions,
+                    keyboardActions = keyboardActions,
+                    visualTransformation = visualTransformation,
                     textStyle = MaterialTheme.typography.bodyMedium.copy(
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Medium,
-                        color = colors.textPrimary
+                        color = if (enabled) colors.textPrimary else colors.textMuted
                     ),
                     cursorBrush = SolidColor(colors.accentAmber),
                     modifier = Modifier

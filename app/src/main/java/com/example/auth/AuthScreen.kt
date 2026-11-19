@@ -44,12 +44,10 @@ import androidx.compose.material.icons.outlined.VisibilityOff
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Login
 import androidx.compose.material.icons.rounded.PersonAdd
+import androidx.compose.foundation.clickable
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -83,6 +81,7 @@ import androidx.credentials.CredentialManager
 import com.example.R
 import com.example.ui.components.AtmosphericDarkCard
 import com.example.ui.components.KarirKuBrandBadge
+import com.example.ui.components.KarirKuCompactTextField
 import com.example.ui.components.PulsingStatusDot
 import com.example.ui.components.TactileRaisedButton
 import com.example.ui.components.TactileRaisedCard
@@ -257,7 +256,7 @@ fun AuthScreen(
                             border = BorderStroke(1.dp, colors.accentAmber.copy(alpha = 0.45f))
                         ) {
                             Text(
-                                text = "[ PIPELINE KARIER // 2026 ]",
+                                text = "CATATAN KARIER • 2026",
                                 style = MonoEyebrowStyle,
                                 color = colors.accentAmber,
                                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
@@ -265,16 +264,17 @@ fun AuthScreen(
                         }
 
                         Text(
-                            text = "Arsitektur Kariermu\ndalam Satu Dossier.",
+                            text = "Atur Lamaran Kerjamu\nLebih Rapi & Terarah.",
                             style = MaterialTheme.typography.displaySmall.copy(
                                 fontFamily = UnboundedFontFamily,
+                                fontSize = 22.sp,
                                 lineHeight = 29.sp
                             ),
                             color = colors.heroOnDark
                         )
 
                         Text(
-                            text = "Pantau funnel lamaran, jadwal interview HR & User, negosiasi offer, dan portofolio kariermu dalam satu ruang kerja modern.",
+                            text = "Catat setiap lamaran, atur jadwal interview, dan simpan CV serta portofolio di satu tempat yang praktis.",
                             style = MaterialTheme.typography.bodyMedium,
                             color = colors.heroOnDarkMuted
                         )
@@ -298,7 +298,7 @@ fun AuthScreen(
                                 )
                             }
                             Text(
-                                text = "SINKRONISASI CLOUD",
+                                text = "TERSINKRON CLOUD",
                                 style = MonoEyebrowStyle.copy(fontSize = 9.sp),
                                 color = colors.heroOnDarkMuted
                             )
@@ -313,22 +313,22 @@ fun AuthScreen(
                     icon = Icons.Outlined.Insights,
                     iconTint = colors.accentAmber,
                     iconBg = colors.amberSoftBg,
-                    title = "Pipeline Seleksi Realtime",
-                    subtitle = "Pantau rasio konversi dari Wishlist, Screening, Interview hingga Offer."
+                    title = "Pantau Progres Lamaran",
+                    subtitle = "Lihat status setiap lamaran dari Disimpan, Screening, Interview, hingga Offer."
                 )
                 AuthFeatureRow(
                     icon = Icons.Outlined.CalendarMonth,
                     iconTint = colors.accentBlue,
                     iconBg = colors.blueSoftBg,
-                    title = "Agenda Interview Terstruktur",
-                    subtitle = "Jadwal wawancara, tautan meeting, pewawancara, dan catatan persiapan."
+                    title = "Jadwal Interview Rapi",
+                    subtitle = "Kalender mingguan, tautan meeting langsung, dan catatan persiapan wawancara."
                 )
                 AuthFeatureRow(
                     icon = Icons.Outlined.FolderShared,
                     iconTint = colors.accentEmerald,
                     iconBg = colors.emeraldSoftBg,
-                    title = "Dossier Pelamar & Portofolio",
-                    subtitle = "Kelola versi CV ATS, link portofolio, sertifikasi, dan ekspektasi gaji."
+                    title = "CV & Portofolio Siap Pakai",
+                    subtitle = "Simpan tautan CV, portofolio, sertifikat, dan target gaji di satu tempat."
                 )
             }
 
@@ -516,155 +516,162 @@ fun AuthScreen(
                         }
                     }
 
-                    // Full Name Field (Sign-Up mode only)
+                    // Full Name Field (Sign-Up mode only — Compact 48dp)
                     AnimatedVisibility(
                         visible = authMode == EmailAuthMode.SIGN_UP,
                         enter = fadeIn() + expandVertically(),
                         exit = fadeOut() + shrinkVertically()
                     ) {
-                        OutlinedTextField(
-                            value = fullName,
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text("NAMA LENGKAP", style = MonoEyebrowStyle, color = colors.textMuted)
+                            KarirKuCompactTextField(
+                                value = fullName,
+                                onValueChange = {
+                                    fullName = it.take(80)
+                                    errorMessage = null
+                                },
+                                placeholder = "Nama lengkapmu",
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Outlined.Person,
+                                        contentDescription = null,
+                                        tint = colors.textMuted,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                },
+                                enabled = !anyLoading,
+                                keyboardOptions = KeyboardOptions(
+                                    capitalization = KeyboardCapitalization.Words,
+                                    imeAction = ImeAction.Next
+                                ),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .testTag("auth_full_name_input")
+                            )
+                        }
+                    }
+
+                    // Email Field (Compact 48dp)
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text("ALAMAT EMAIL", style = MonoEyebrowStyle, color = colors.textMuted)
+                        KarirKuCompactTextField(
+                            value = email,
                             onValueChange = {
-                                fullName = it.take(80)
+                                email = it.take(120)
                                 errorMessage = null
                             },
-                            label = { Text("Nama Lengkap") },
-                            placeholder = { Text("Contoh: Dita Pratama") },
+                            placeholder = "nama@email.com",
                             leadingIcon = {
                                 Icon(
-                                    imageVector = Icons.Outlined.Person,
+                                    imageVector = Icons.Outlined.Email,
                                     contentDescription = null,
-                                    tint = colors.textMuted
+                                    tint = colors.textMuted,
+                                    modifier = Modifier.size(18.dp)
                                 )
                             },
-                            singleLine = true,
                             enabled = !anyLoading,
                             keyboardOptions = KeyboardOptions(
-                                capitalization = KeyboardCapitalization.Words,
+                                keyboardType = KeyboardType.Email,
                                 imeAction = ImeAction.Next
                             ),
-                            shape = RoundedCornerShape(14.dp),
-                            colors = authFieldColors(),
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .testTag("auth_full_name_input")
+                                .testTag("auth_email_input")
                         )
                     }
 
-                    // Email Field
-                    OutlinedTextField(
-                        value = email,
-                        onValueChange = {
-                            email = it.take(120)
-                            errorMessage = null
-                        },
-                        label = { Text("Alamat Email") },
-                        placeholder = { Text("nama@email.com") },
-                        leadingIcon = {
-                            Icon(
-                                imageVector = Icons.Outlined.Email,
-                                contentDescription = null,
-                                tint = colors.textMuted
-                            )
-                        },
-                        singleLine = true,
-                        enabled = !anyLoading,
-                        keyboardOptions = KeyboardOptions(
-                            keyboardType = KeyboardType.Email,
-                            imeAction = ImeAction.Next
-                        ),
-                        shape = RoundedCornerShape(14.dp),
-                        colors = authFieldColors(),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("auth_email_input")
-                    )
-
-                    // Password Field
-                    OutlinedTextField(
-                        value = password,
-                        onValueChange = {
-                            password = it.take(72)
-                            errorMessage = null
-                        },
-                        label = { Text("Kata Sandi") },
-                        placeholder = { Text("Minimal 6 karakter") },
-                        leadingIcon = {
-                            Icon(
-                                imageVector = Icons.Outlined.Lock,
-                                contentDescription = null,
-                                tint = colors.textMuted
-                            )
-                        },
-                        trailingIcon = {
-                            IconButton(onClick = { passwordVisible = !passwordVisible }) {
-                                Icon(
-                                    imageVector = if (passwordVisible) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility,
-                                    contentDescription = if (passwordVisible) "Sembunyikan kata sandi" else "Lihat kata sandi",
-                                    tint = colors.textMuted
-                                )
-                            }
-                        },
-                        visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                        singleLine = true,
-                        enabled = !anyLoading,
-                        keyboardOptions = KeyboardOptions(
-                            keyboardType = KeyboardType.Password,
-                            imeAction = if (authMode == EmailAuthMode.LOGIN) ImeAction.Done else ImeAction.Next
-                        ),
-                        keyboardActions = KeyboardActions(
-                            onDone = {
-                                if (authMode == EmailAuthMode.LOGIN && !anyLoading) {
-                                    submitEmailAuth()
-                                }
-                            }
-                        ),
-                        shape = RoundedCornerShape(14.dp),
-                        colors = authFieldColors(),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("auth_password_input")
-                    )
-
-                    // Confirm Password Field (Sign-Up mode only)
-                    AnimatedVisibility(
-                        visible = authMode == EmailAuthMode.SIGN_UP,
-                        enter = fadeIn() + expandVertically(),
-                        exit = fadeOut() + shrinkVertically()
-                    ) {
-                        OutlinedTextField(
-                            value = confirmPassword,
+                    // Password Field (Compact 48dp)
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text("KATA SANDI", style = MonoEyebrowStyle, color = colors.textMuted)
+                        KarirKuCompactTextField(
+                            value = password,
                             onValueChange = {
-                                confirmPassword = it.take(72)
+                                password = it.take(72)
                                 errorMessage = null
                             },
-                            label = { Text("Konfirmasi Kata Sandi") },
-                            placeholder = { Text("Ulangi kata sandi") },
+                            placeholder = "Minimal 6 karakter",
                             leadingIcon = {
                                 Icon(
                                     imageVector = Icons.Outlined.Lock,
                                     contentDescription = null,
-                                    tint = colors.textMuted
+                                    tint = colors.textMuted,
+                                    modifier = Modifier.size(18.dp)
                                 )
                             },
+                            trailingIcon = {
+                                Box(
+                                    modifier = Modifier
+                                        .size(32.dp)
+                                        .clip(CircleShape)
+                                        .clickable { passwordVisible = !passwordVisible },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = if (passwordVisible) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility,
+                                        contentDescription = if (passwordVisible) "Sembunyikan kata sandi" else "Lihat kata sandi",
+                                        tint = colors.textMuted,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            },
                             visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                            singleLine = true,
                             enabled = !anyLoading,
                             keyboardOptions = KeyboardOptions(
                                 keyboardType = KeyboardType.Password,
-                                imeAction = ImeAction.Done
+                                imeAction = if (authMode == EmailAuthMode.LOGIN) ImeAction.Done else ImeAction.Next
                             ),
                             keyboardActions = KeyboardActions(
                                 onDone = {
-                                    if (!anyLoading) submitEmailAuth()
+                                    if (authMode == EmailAuthMode.LOGIN && !anyLoading) {
+                                        submitEmailAuth()
+                                    }
                                 }
                             ),
-                            shape = RoundedCornerShape(14.dp),
-                            colors = authFieldColors(),
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .testTag("auth_confirm_password_input")
+                                .testTag("auth_password_input")
                         )
+                    }
+
+                    // Confirm Password Field (Sign-Up mode only — Compact 48dp)
+                    AnimatedVisibility(
+                        visible = authMode == EmailAuthMode.SIGN_UP,
+                        enter = fadeIn() + expandVertically(),
+                        exit = fadeOut() + shrinkVertically()
+                    ) {
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text("KONFIRMASI KATA SANDI", style = MonoEyebrowStyle, color = colors.textMuted)
+                            KarirKuCompactTextField(
+                                value = confirmPassword,
+                                onValueChange = {
+                                    confirmPassword = it.take(72)
+                                    errorMessage = null
+                                },
+                                placeholder = "Ulangi kata sandi",
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Outlined.Lock,
+                                        contentDescription = null,
+                                        tint = colors.textMuted,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                },
+                                visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                                enabled = !anyLoading,
+                                keyboardOptions = KeyboardOptions(
+                                    keyboardType = KeyboardType.Password,
+                                    imeAction = ImeAction.Done
+                                ),
+                                keyboardActions = KeyboardActions(
+                                    onDone = {
+                                        if (!anyLoading) submitEmailAuth()
+                                    }
+                                ),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .testTag("auth_confirm_password_input")
+                            )
+                        }
                     }
 
                     // Forgot Password Link (Login mode only)
@@ -834,18 +841,6 @@ private fun AuthModeSegmentPill(
         )
     }
 }
-
-@Composable
-private fun authFieldColors() = OutlinedTextFieldDefaults.colors(
-    focusedContainerColor = KarirKuThemeTokens.colors.recessedSurface,
-    unfocusedContainerColor = KarirKuThemeTokens.colors.recessedSurface,
-    focusedBorderColor = KarirKuThemeTokens.colors.textPrimary,
-    unfocusedBorderColor = KarirKuThemeTokens.colors.borderSubtle,
-    focusedTextColor = KarirKuThemeTokens.colors.textPrimary,
-    unfocusedTextColor = KarirKuThemeTokens.colors.textPrimary,
-    focusedLabelColor = KarirKuThemeTokens.colors.textPrimary,
-    unfocusedLabelColor = KarirKuThemeTokens.colors.textMuted
-)
 
 @Composable
 private fun AuthFeatureRow(

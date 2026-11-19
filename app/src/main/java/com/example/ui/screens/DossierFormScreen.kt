@@ -186,11 +186,11 @@ fun DossierFormScreen(
 
     fun submit(overrideStatus: ApplicationStatus?) {
         if (roleTitle.trim().isEmpty()) {
-            validationError = "Judul peran (Role Title) wajib diisi."
+            validationError = "Posisi yang dilamar wajib diisi."
             return
         }
         if (companyName.trim().isEmpty()) {
-            validationError = "Nama perusahaan (Company) wajib diisi."
+            validationError = "Nama perusahaan wajib diisi."
             return
         }
         validationError = null
@@ -255,12 +255,12 @@ fun DossierFormScreen(
             }
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = if (existingApplication == null) "ENTRI BARU" else "PERBARUI DOSSIER",
+                    text = if (existingApplication == null) "LAMARAN BARU" else "EDIT LAMARAN",
                     style = MonoEyebrowStyle,
                     color = colors.accentAmber
                 )
                 Text(
-                    text = if (existingApplication == null) "Formulir Dossier" else existingApplication.companyName,
+                    text = if (existingApplication == null) "Tambah Lamaran" else existingApplication.companyName,
                     style = MaterialTheme.typography.titleLarge,
                     color = colors.textPrimary,
                     maxLines = 1,
@@ -281,7 +281,7 @@ fun DossierFormScreen(
                     border = BorderStroke(1.dp, colors.accentAmber.copy(alpha = 0.4f))
                 ) {
                     Text(
-                        text = "[ PIPELINE ENTRY // 2026 ]",
+                        text = "CATAT LAMARAN • 2026",
                         style = MonoEyebrowStyle.copy(fontSize = 10.sp),
                         color = colors.accentAmber,
                         maxLines = 1,
@@ -300,7 +300,7 @@ fun DossierFormScreen(
                         color = Color.White.copy(alpha = 0.08f)
                     ) {
                         Text(
-                            text = "DOSSIER FORM",
+                            text = "FORM LAMARAN",
                             style = MonoEyebrowStyle.copy(fontSize = 9.sp),
                             color = colors.heroOnDarkMuted,
                             maxLines = 1,
@@ -325,7 +325,7 @@ fun DossierFormScreen(
                 }
 
                 Text(
-                    text = if (existingApplication == null) "Tambah &\nKelola Lamaran Kerja" else "Edit Dossier\nLamaran Kerja",
+                    text = if (existingApplication == null) "Catat Lamaran\nKerja Barumu" else "Edit Detail\nLamaran Kerja",
                     style = MaterialTheme.typography.displaySmall.copy(
                         fontFamily = UnboundedFontFamily,
                         fontSize = 22.sp,
@@ -335,7 +335,7 @@ fun DossierFormScreen(
                 )
 
                 Text(
-                    text = "Dokumentasikan tahap rekrutmen, penawaran kompensasi, serta berkas portofolio dalam satu kanvas terstruktur.",
+                    text = "Simpan info posisi, status seleksi, estimasi gaji, dan catatan penting dalam satu tempat.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = colors.heroOnDarkMuted
                 )
@@ -367,7 +367,7 @@ fun DossierFormScreen(
             Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text(
-                        text = "JUDUL PERAN (ROLE TITLE) *",
+                        text = "POSISI YANG DILAMAR *",
                         style = MonoEyebrowStyle,
                         color = colors.textMuted
                     )
@@ -383,7 +383,7 @@ fun DossierFormScreen(
 
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text(
-                        text = "PERUSAHAAN (COMPANY) *",
+                        text = "NAMA PERUSAHAAN *",
                         style = MonoEyebrowStyle,
                         color = colors.textMuted
                     )
@@ -441,11 +441,11 @@ fun DossierFormScreen(
             }
         }
 
-        // SECTION 02: Status & Pipeline
+        // SECTION 02: Status Lamaran
         DossierFormSectionCard(
             number = "02",
-            title = "Status & Pipeline",
-            rightTag = "PILIH TAHAP AKTIF"
+            title = "Status Lamaran",
+            rightTag = "PILIH TAHAP"
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 val statuses = ApplicationStatus.entries
@@ -563,11 +563,11 @@ fun DossierFormScreen(
             }
         }
 
-        // SECTION 03: Kompensasi & Gaji
+        // SECTION 03: Estimasi Gaji & Tanggal
         DossierFormSectionCard(
             number = "03",
-            title = "Kompensasi & Gaji",
-            rightTag = "IDR GROSS / BULAN"
+            title = "Estimasi Gaji & Tanggal",
+            rightTag = "PER BULAN"
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 Row(
@@ -575,7 +575,7 @@ fun DossierFormScreen(
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text("BATAS BAWAH (MIN)", style = MonoEyebrowStyle, color = colors.textMuted, maxLines = 1)
+                        Text("GAJI MINIMAL", style = MonoEyebrowStyle, color = colors.textMuted, maxLines = 1)
                         KarirKuCompactTextField(
                             value = salaryMinText,
                             onValueChange = { salaryMinText = it.filter { ch -> ch.isDigit() }.take(10) },
@@ -588,7 +588,7 @@ fun DossierFormScreen(
                         )
                     }
                     Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text("BATAS ATAS (MAX)", style = MonoEyebrowStyle, color = colors.textMuted, maxLines = 1)
+                        Text("GAJI MAKSIMAL", style = MonoEyebrowStyle, color = colors.textMuted, maxLines = 1)
                         KarirKuCompactTextField(
                             value = salaryMaxText,
                             onValueChange = { salaryMaxText = it.filter { ch -> ch.isDigit() }.take(10) },
@@ -605,7 +605,7 @@ fun DossierFormScreen(
                 // Quick IDR Salary Presets for fast input
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text(
-                        text = "PRESET CEPAT (IDR / BULAN)",
+                        text = "PILIH CEPAT (PER BULAN)",
                         style = MonoEyebrowStyle.copy(fontSize = 9.sp),
                         color = colors.textMuted
                     )
@@ -703,13 +703,13 @@ fun DossierFormScreen(
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     DateSelectorField(
-                        label = "TANGGAL DILAMAR",
+                        label = "TANGGAL LAMAR",
                         dateMillis = appliedDateMillis,
                         onClick = { activeDatePickerTarget = "applied" },
                         modifier = Modifier.weight(1f)
                     )
                     DateSelectorField(
-                        label = "TARGET RESPON",
+                        label = "TARGET KABAR",
                         dateMillis = targetResponseMillis,
                         onClick = { activeDatePickerTarget = "target" },
                         modifier = Modifier.weight(1f)
@@ -721,12 +721,12 @@ fun DossierFormScreen(
         // SECTION 04: Detail & Berkas
         DossierFormSectionCard(
             number = "04",
-            title = "Detail & Berkas",
+            title = "Catatan & Berkas",
             rightTag = "${attachments.size} DOKUMEN"
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("CATATAN & TANGGUNG JAWAB", style = MonoEyebrowStyle, color = colors.textMuted)
+                    Text("CATATAN PENTING", style = MonoEyebrowStyle, color = colors.textMuted)
                     KarirKuCompactTextField(
                         value = notes,
                         onValueChange = { notes = it.take(3000) },
@@ -758,7 +758,7 @@ fun DossierFormScreen(
                 attachments.forEachIndexed { idx, entry ->
                     val parts = entry.split("|")
                     val title = parts.getOrElse(0) { entry }
-                    val subtitle = parts.getOrElse(1) { "Lampiran Dossier" }
+                    val subtitle = parts.getOrElse(1) { "Berkas Lampiran" }
                     Surface(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(14.dp),

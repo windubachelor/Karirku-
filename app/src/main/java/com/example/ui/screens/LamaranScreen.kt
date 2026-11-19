@@ -92,7 +92,7 @@ fun LamaranScreen(
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "DOSSIER LAMARAN",
+                        text = "DAFTAR LAMARAN",
                         style = MonoEyebrowStyle,
                         color = colors.accentAmber,
                         maxLines = 1
@@ -256,13 +256,13 @@ fun LamaranScreen(
         if (filteredApps.isEmpty()) {
             item(key = "lamaran_empty") {
                 ExpressiveEmptyStateCard(
-                    eyebrow = "PIPELINE BERKAS",
-                    title = if (searchQuery.isNotBlank()) "Pencarian Tidak Ditemukan" else "Belum Ada Dossier Lamaran",
+                    eyebrow = "BELUM ADA DATA",
+                    title = if (searchQuery.isNotBlank()) "Pencarian Tidak Ditemukan" else "Belum Ada Lamaran",
                     description = if (searchQuery.isNotBlank())
                         "Tidak ada lamaran yang cocok dengan \"$searchQuery\". Coba kata kunci lain."
                     else
-                        "Buka formulir Dossier untuk mencatat posisi baru, rentang gaji, jadwal respon, dan berkas lamaranmu.",
-                    ctaLabel = if (searchQuery.isNotBlank()) "Reset Pencarian" else "+ Buka Formulir Dossier",
+                        "Yuk catat lamaran pertamamu lengkap dengan estimasi gaji, target kabar, dan berkas pendukung.",
+                    ctaLabel = if (searchQuery.isNotBlank()) "Reset Pencarian" else "+ Tambah Lamaran",
                     onCtaClick = {
                         if (searchQuery.isNotBlank()) onSearchQueryChange("") else onAddNewDossierClick()
                     }

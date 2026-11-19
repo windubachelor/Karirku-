@@ -1,6 +1,5 @@
 package com.example.ui.screens
 
-import android.content.Intent
 import android.net.Uri
 import android.provider.OpenableColumns
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -36,16 +35,15 @@ import androidx.compose.material.icons.outlined.DarkMode
 import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.outlined.Language
 import androidx.compose.material.icons.outlined.Layers
 import androidx.compose.material.icons.outlined.LocationOn
 import androidx.compose.material.icons.outlined.NotificationsActive
-import androidx.compose.material.icons.outlined.OpenInNew
 import androidx.compose.material.icons.outlined.VerifiedUser
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.TrendingUp
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -54,7 +52,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
@@ -85,6 +82,8 @@ import com.example.data.DocumentCategory
 import com.example.data.KarirKuFormatters
 import com.example.data.UserProfile
 import com.example.ui.components.AtmosphericDarkCard
+import com.example.ui.components.InAppWebBrowserDialog
+import com.example.ui.components.KarirKuCompactTextField
 import com.example.ui.components.PulsingStatusDot
 import com.example.ui.components.TactileRaisedButton
 import com.example.ui.components.TactileRaisedCard
@@ -114,7 +113,6 @@ fun ProfilScreen(
     modifier: Modifier = Modifier
 ) {
     val colors = KarirKuThemeTokens.colors
-    val context = LocalContext.current
     val profile = state.profile
     val metrics = state.metrics
 
@@ -122,6 +120,7 @@ fun ProfilScreen(
     var showEditPreferencesSheet by remember { mutableStateOf(false) }
     var showAddDocumentSheet by remember { mutableStateOf(false) }
     var showSignOutConfirm by remember { mutableStateOf(false) }
+    var previewDocument by remember { mutableStateOf<CareerDocument?>(null) }
 
     val displayName = profile?.displayName?.ifBlank { "Pengguna KarirKu" } ?: "Pengguna KarirKu"
     val headline = profile?.headline?.ifBlank { "Profesional Karier" } ?: "Profesional Karier"
@@ -136,7 +135,7 @@ fun ProfilScreen(
         contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 108.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
-        // 1. Dark Editorial Dossier Pelamar Card (Reference Screenshot 2)
+        // 1. Dark Atmospheric Profile Card
         item(key = "dossier_card") {
             AtmosphericDarkCard(modifier = Modifier.fillMaxWidth()) {
                 Column(
@@ -163,7 +162,7 @@ fun ProfilScreen(
                                     .background(colors.accentCrimson)
                             )
                             Text(
-                                text = "DOSSIER PELAMAR // 2026",
+                                text = "PROFIL KARIER • 2026",
                                 style = MonoEyebrowStyle,
                                 color = colors.heroOnDark
                             )
@@ -285,14 +284,14 @@ fun ProfilScreen(
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         ProfileStatTile(
-                            eyebrow = "AKTIVITAS",
+                            eyebrow = "TOTAL",
                             value = metrics.totalCount.toString(),
                             subtitle = "Dilamar",
                             valueColor = colors.heroOnDark,
                             modifier = Modifier.weight(1f)
                         )
                         ProfileStatTile(
-                            eyebrow = "KONVERSI",
+                            eyebrow = "RESPON",
                             value = "${metrics.positiveResponseRate}%",
                             subtitle = "Respon Positif",
                             valueColor = colors.emeraldBright,
@@ -310,7 +309,7 @@ fun ProfilScreen(
             }
         }
 
-        // 2. Dokumen & Portofolio Section
+        // 2. Dokumen & Portofolio Section (Opens inside In-App Browser)
         item(key = "documents_header") {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -322,7 +321,7 @@ fun ProfilScreen(
                     verticalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
                     Text(
-                        text = "DOSSIER",
+                        text = "CV & PORTOFOLIO",
                         style = MonoEyebrowStyle.copy(fontSize = 9.5.sp),
                         color = colors.accentAmber,
                         maxLines = 1
@@ -393,12 +392,12 @@ fun ProfilScreen(
                         }
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = "Tambahkan CV, Portofolio, atau Sertifikasi",
+                                text = "Tambahkan CV, Portofolio, atau Sertifikat",
                                 style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
                                 color = colors.textPrimary
                             )
                             Text(
-                                text = "Simpan tautan Figma, Behance, GitHub, atau berkas CV ATS terbarumu.",
+                                text = "Simpan tautan Figma, Behance, GitHub, LinkedIn, atau CV untuk dibuka langsung di aplikasi.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = colors.textMuted
                             )
@@ -412,15 +411,7 @@ fun ProfilScreen(
                     document = doc,
                     onOpen = {
                         if (doc.externalUrl.isNotBlank()) {
-                            val url = if (doc.externalUrl.startsWith("http://") || doc.externalUrl.startsWith("https://")) {
-                                doc.externalUrl
-                            } else {
-                                "https://${doc.externalUrl}"
-                            }
-                            try {
-                                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
-                            } catch (_: Exception) {
-                            }
+                            previewDocument = doc
                         }
                     },
                     onDelete = { onDeleteDocument(doc.id) }
@@ -441,7 +432,7 @@ fun ProfilScreen(
                         verticalArrangement = Arrangement.spacedBy(2.dp)
                     ) {
                         Text(
-                            text = "KRITERIA",
+                            text = "TARGET KARIER",
                             style = MonoEyebrowStyle.copy(fontSize = 9.5.sp),
                             color = colors.accentAmber,
                             maxLines = 1
@@ -488,7 +479,7 @@ fun ProfilScreen(
                             val roles = profile?.targetRoles.orEmpty()
                             if (roles.isEmpty()) {
                                 Text(
-                                    text = "Belum diatur — ketuk ikon pensil untuk menambahkan target peran.",
+                                    text = "Belum diatur — ketuk ikon pensil untuk menambahkan posisi incaran.",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = colors.textMuted
                                 )
@@ -518,7 +509,7 @@ fun ProfilScreen(
                         HorizontalDivider(color = colors.borderSubtle.copy(alpha = 0.7f))
 
                         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Text("RANGE EKSPEKTASI GAJI", style = MonoEyebrowStyle, color = colors.textMuted)
+                            Text("EKSPEKTASI GAJI", style = MonoEyebrowStyle, color = colors.textMuted)
                             val minSal = profile?.expectedSalaryMin ?: 0L
                             val maxSal = profile?.expectedSalaryMax ?: 0L
                             Row(
@@ -547,7 +538,7 @@ fun ProfilScreen(
                         HorizontalDivider(color = colors.borderSubtle.copy(alpha = 0.7f))
 
                         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Text("TIPE & LOKASI KERJA", style = MonoEyebrowStyle, color = colors.textMuted)
+                            Text("SISTEM & LOKASI KERJA", style = MonoEyebrowStyle, color = colors.textMuted)
                             val workTypes = profile?.preferredWorkTypes.orEmpty()
                             if (workTypes.isEmpty()) {
                                 Text("Belum diatur", style = MaterialTheme.typography.bodySmall, color = colors.textMuted)
@@ -578,18 +569,18 @@ fun ProfilScreen(
             }
         }
 
-        // 4. Pengaturan & Integrasi Section
+        // 4. Pengaturan Section
         item(key = "settings_section") {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(
-                        text = "SISTEM",
+                        text = "PENGATURAN",
                         style = MonoEyebrowStyle.copy(fontSize = 9.5.sp),
                         color = colors.accentAmber,
                         maxLines = 1
                     )
                     Text(
-                        text = "Pengaturan & Integrasi",
+                        text = "Pengaturan Aplikasi",
                         style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.ExtraBold),
                         color = colors.textPrimary,
                         maxLines = 1,
@@ -623,7 +614,7 @@ fun ProfilScreen(
                                     color = colors.textPrimary
                                 )
                                 Text(
-                                    text = "Tampilkan indikator agenda interview aktif",
+                                    text = "Tampilkan penanda saat ada jadwal interview aktif",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = colors.textMuted
                                 )
@@ -647,12 +638,12 @@ fun ProfilScreen(
                             Icon(Icons.Outlined.DarkMode, contentDescription = null, tint = colors.textPrimary)
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = "Mode Gelap Editorial",
+                                    text = "Mode Gelap",
                                     style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
                                     color = colors.textPrimary
                                 )
                                 Text(
-                                    text = "Beralih ke kanvas obsidian gelap",
+                                    text = "Tampilan gelap yang nyaman di mata",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = colors.textMuted
                                 )
@@ -703,6 +694,15 @@ fun ProfilScreen(
                 }
             }
         }
+    }
+
+    // In-App WebView Browser Dialog for Document / Portfolio Links
+    previewDocument?.let { doc ->
+        InAppWebBrowserDialog(
+            title = doc.title,
+            url = doc.externalUrl,
+            onDismiss = { previewDocument = null }
+        )
     }
 
     // Dialogs & Bottom Sheets
@@ -834,7 +834,9 @@ private fun CareerDocumentRowCard(
     }
 
     TactileRaisedCard(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("profil_doc_card_${document.id}"),
         containerColor = colors.cardSurface,
         borderColor = colors.borderSubtle,
         cornerRadius = 18.dp,
@@ -878,12 +880,17 @@ private fun CareerDocumentRowCard(
                 )
             }
             if (document.externalUrl.isNotBlank()) {
-                IconButton(onClick = onOpen, modifier = Modifier.size(38.dp)) {
+                IconButton(
+                    onClick = onOpen,
+                    modifier = Modifier
+                        .size(38.dp)
+                        .testTag("profil_doc_open_${document.id}")
+                ) {
                     Icon(
-                        imageVector = Icons.Outlined.OpenInNew,
-                        contentDescription = "Buka tautan dokumen",
-                        tint = colors.textPrimary,
-                        modifier = Modifier.size(18.dp)
+                        imageVector = Icons.Outlined.Language,
+                        contentDescription = "Buka tautan di dalam aplikasi",
+                        tint = colors.accentBlue,
+                        modifier = Modifier.size(19.dp)
                     )
                 }
             }
@@ -923,41 +930,45 @@ private fun EditIdentityBottomSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp)
                 .padding(bottom = 32.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Text("IDENTITAS DOSSIER", style = MonoEyebrowStyle, color = colors.accentAmber)
-            Text("Edit Profil Pelamar", style = MaterialTheme.typography.headlineMedium, color = colors.textPrimary)
+            Text("PROFIL SAYA", style = MonoEyebrowStyle, color = colors.accentAmber)
+            Text("Edit Profil", style = MaterialTheme.typography.headlineMedium, color = colors.textPrimary)
 
-            OutlinedTextField(
-                value = displayName,
-                onValueChange = { displayName = it.take(100) },
-                label = { Text("Nama Lengkap *") },
-                singleLine = true,
-                shape = RoundedCornerShape(14.dp),
-                modifier = Modifier.fillMaxWidth()
-            )
-            OutlinedTextField(
-                value = headline,
-                onValueChange = { headline = it.take(120) },
-                label = { Text("Headline Profesional") },
-                placeholder = { Text("Contoh: Senior Product & UX Designer") },
-                singleLine = true,
-                shape = RoundedCornerShape(14.dp),
-                modifier = Modifier.fillMaxWidth()
-            )
-            OutlinedTextField(
-                value = location,
-                onValueChange = { location = it.take(100) },
-                label = { Text("Domisili / Lokasi") },
-                placeholder = { Text("Contoh: Jakarta Selatan") },
-                singleLine = true,
-                shape = RoundedCornerShape(14.dp),
-                modifier = Modifier.fillMaxWidth()
-            )
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("NAMA LENGKAP *", style = MonoEyebrowStyle, color = colors.textMuted)
+                KarirKuCompactTextField(
+                    value = displayName,
+                    onValueChange = { displayName = it.take(100) },
+                    placeholder = "Nama lengkapmu",
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
 
-            Text("STATUS KETERSEDIAAN", style = MonoEyebrowStyle, color = colors.textMuted)
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("PROFESI / POSISI SAAT INI", style = MonoEyebrowStyle, color = colors.textMuted)
+                KarirKuCompactTextField(
+                    value = headline,
+                    onValueChange = { headline = it.take(120) },
+                    placeholder = "Contoh: Senior Product & UX Designer",
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("DOMISILI / LOKASI", style = MonoEyebrowStyle, color = colors.textMuted)
+                KarirKuCompactTextField(
+                    value = location,
+                    onValueChange = { location = it.take(100) },
+                    placeholder = "Contoh: Jakarta Selatan",
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+
+            Text("STATUS KARIER", style = MonoEyebrowStyle, color = colors.textMuted)
             FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -1031,19 +1042,22 @@ private fun EditPreferencesBottomSheet(
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp)
                 .padding(bottom = 32.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Text("KRITERIA KARIER", style = MonoEyebrowStyle, color = colors.accentAmber)
+            Text("TARGET KARIER", style = MonoEyebrowStyle, color = colors.accentAmber)
             Text("Preferensi Karier", style = MaterialTheme.typography.headlineMedium, color = colors.textPrimary)
 
-            OutlinedTextField(
-                value = rolesCsv,
-                onValueChange = { rolesCsv = it },
-                label = { Text("Target Posisi (pisahkan dengan koma)") },
-                placeholder = { Text("Lead UX Designer, Senior Product Designer") },
-                shape = RoundedCornerShape(14.dp),
-                modifier = Modifier.fillMaxWidth()
-            )
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("TARGET POSISI (PISAHKAN KOMA)", style = MonoEyebrowStyle, color = colors.textMuted)
+                KarirKuCompactTextField(
+                    value = rolesCsv,
+                    onValueChange = { rolesCsv = it },
+                    placeholder = "Lead UX Designer, Senior Product Designer",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("pref_roles_input")
+                )
+            }
 
             FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -1081,34 +1095,45 @@ private fun EditPreferencesBottomSheet(
             }
 
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedTextField(
-                    value = minSalText,
-                    onValueChange = { minSalText = it.filter { c -> c.isDigit() }.take(10) },
-                    label = { Text("Gaji Min (Rp)") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    singleLine = true,
-                    shape = RoundedCornerShape(14.dp),
-                    modifier = Modifier.weight(1f)
-                )
-                OutlinedTextField(
-                    value = maxSalText,
-                    onValueChange = { maxSalText = it.filter { c -> c.isDigit() }.take(10) },
-                    label = { Text("Gaji Max (Rp)") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    singleLine = true,
-                    shape = RoundedCornerShape(14.dp),
-                    modifier = Modifier.weight(1f)
-                )
+                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("GAJI MINIMAL", style = MonoEyebrowStyle, color = colors.textMuted, maxLines = 1)
+                    KarirKuCompactTextField(
+                        value = minSalText,
+                        onValueChange = { minSalText = it.filter { c -> c.isDigit() }.take(10) },
+                        prefixText = "Rp",
+                        placeholder = "15000000",
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("pref_salary_min_input")
+                    )
+                }
+                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("GAJI MAKSIMAL", style = MonoEyebrowStyle, color = colors.textMuted, maxLines = 1)
+                    KarirKuCompactTextField(
+                        value = maxSalText,
+                        onValueChange = { maxSalText = it.filter { c -> c.isDigit() }.take(10) },
+                        prefixText = "Rp",
+                        placeholder = "25000000",
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("pref_salary_max_input")
+                    )
+                }
             }
 
-            OutlinedTextField(
-                value = workTypesCsv,
-                onValueChange = { workTypesCsv = it },
-                label = { Text("Tipe & Lokasi Kerja (pisahkan koma)") },
-                placeholder = { Text("Hybrid Jakarta, Remote Global") },
-                shape = RoundedCornerShape(14.dp),
-                modifier = Modifier.fillMaxWidth()
-            )
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("SISTEM & LOKASI KERJA", style = MonoEyebrowStyle, color = colors.textMuted)
+                KarirKuCompactTextField(
+                    value = workTypesCsv,
+                    onValueChange = { workTypesCsv = it },
+                    placeholder = "Hybrid Jakarta, Remote Global",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("pref_work_types_input")
+                )
+            }
 
             TactileRaisedButton(
                 onClick = {
@@ -1185,9 +1210,9 @@ private fun AddDocumentBottomSheet(
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp)
                 .padding(bottom = 32.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Text("BERKAS DOSSIER", style = MonoEyebrowStyle, color = colors.accentAmber)
+            Text("BERKAS KARIER", style = MonoEyebrowStyle, color = colors.accentAmber)
             Text("Tambah Dokumen & Portofolio", style = MaterialTheme.typography.headlineMedium, color = colors.textPrimary)
 
             FlowRow(
@@ -1216,38 +1241,54 @@ private fun AddDocumentBottomSheet(
             OutlinedButton(
                 onClick = { filePicker.launch(arrayOf("application/pdf", "application/msword", "image/*")) },
                 shape = RoundedCornerShape(14.dp),
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp)
             ) {
                 Text("Pilih Berkas dari Perangkat (Opsional)")
             }
 
-            OutlinedTextField(
-                value = title,
-                onValueChange = { title = it.take(120) },
-                label = { Text("Judul Dokumen *") },
-                placeholder = { Text("Contoh: CV ATS-Friendly 2026") },
-                singleLine = true,
-                shape = RoundedCornerShape(14.dp),
-                modifier = Modifier.fillMaxWidth()
-            )
-            OutlinedTextField(
-                value = subtitle,
-                onValueChange = { subtitle = it.take(160) },
-                label = { Text("Keterangan / Versi") },
-                placeholder = { Text("Contoh: Behance • 8 Proyek Unggulan") },
-                singleLine = true,
-                shape = RoundedCornerShape(14.dp),
-                modifier = Modifier.fillMaxWidth()
-            )
-            OutlinedTextField(
-                value = externalUrl,
-                onValueChange = { externalUrl = it.take(500) },
-                label = { Text("Tautan Eksternal (Figma / LinkedIn / Drive)") },
-                placeholder = { Text("https://...") },
-                singleLine = true,
-                shape = RoundedCornerShape(14.dp),
-                modifier = Modifier.fillMaxWidth()
-            )
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("JUDUL DOKUMEN *", style = MonoEyebrowStyle, color = colors.textMuted)
+                KarirKuCompactTextField(
+                    value = title,
+                    onValueChange = { title = it.take(120) },
+                    placeholder = "Contoh: CV ATS-Friendly 2026",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("doc_title_input")
+                )
+            }
+
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("KETERANGAN / VERSI", style = MonoEyebrowStyle, color = colors.textMuted)
+                KarirKuCompactTextField(
+                    value = subtitle,
+                    onValueChange = { subtitle = it.take(160) },
+                    placeholder = "Contoh: Behance • 8 Proyek Unggulan",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("doc_subtitle_input")
+                )
+            }
+
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("TAUTAN (FIGMA / LINKEDIN / DRIVE)", style = MonoEyebrowStyle, color = colors.textMuted)
+                KarirKuCompactTextField(
+                    value = externalUrl,
+                    onValueChange = { externalUrl = it.take(500) },
+                    placeholder = "https://...",
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("doc_url_input")
+                )
+                Text(
+                    text = "Tautan akan dibuka langsung di browser dalam aplikasi.",
+                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                    color = colors.textMuted
+                )
+            }
 
             TactileRaisedButton(
                 onClick = {
@@ -1267,7 +1308,9 @@ private fun AddDocumentBottomSheet(
                 contentColor = colors.heroOnDark,
                 lipColor = Color(0xFF06070A),
                 cornerRadius = 16.dp,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("doc_save_button")
             ) {
                 Text("Simpan Dokumen", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold))
             }

@@ -2,8 +2,12 @@ package com.example.ui.screens
 
 import android.content.Intent
 import android.net.Uri
+import android.provider.CalendarContract
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -19,14 +23,19 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.AccessTime
 import androidx.compose.material.icons.outlined.CalendarToday
 import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.outlined.EventAvailable
 import androidx.compose.material.icons.outlined.OpenInNew
 import androidx.compose.material.icons.outlined.PersonOutline
 import androidx.compose.material.icons.outlined.Videocam
@@ -41,7 +50,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -72,8 +80,10 @@ import com.example.data.KarirKuFormatters
 import com.example.data.MeetingFormat
 import com.example.ui.components.AtmosphericDarkCard
 import com.example.ui.components.ExpressiveEmptyStateCard
+import com.example.ui.components.KarirKuCompactTextField
 import com.example.ui.components.TactileRaisedButton
 import com.example.ui.components.TactileRaisedCard
+import com.example.ui.components.modernColoredShadow
 import com.example.ui.components.tactileClickable
 import com.example.ui.theme.KarirKuThemeTokens
 import com.example.ui.theme.MonoEyebrowStyle
@@ -89,6 +99,18 @@ private enum class ScheduleTabFilter(val label: String) {
     UPCOMING("Akan Datang"),
     COMPLETED("Selesai"),
     ALL("Semua")
+}
+
+private data class WeekDaySlot(
+    val dateKey: String,
+    val dayShort: String,
+    val dayNumber: String,
+    val isToday: Boolean,
+    val millis: Long
+)
+
+private fun toDateKey(millis: Long): String {
+    return SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date(millis))
 }
 
 @Composable
@@ -120,6 +142,8 @@ fun JadwalScreen(
     val context = LocalContext.current
 
     var activeFilter by remember { mutableStateOf(ScheduleTabFilter.UPCOMING) }
+    var weekOffset by remember { mutableIntStateOf(0) }
+    var selectedDateKey by remember { mutableStateOf<String?>(null) }
     var showSheet by remember { mutableStateOf(false) }
     var editingSchedule by remember { mutableStateOf<InterviewSchedule?>(null) }
 
@@ -136,11 +160,40 @@ fun JadwalScreen(
     }
     val nextInterview = upcomingList.firstOrNull()
 
-    val displayedSchedules = remember(state.schedules, activeFilter) {
-        when (activeFilter) {
+    val schedulesByDateKey = remember(state.schedules) {
+        state.schedules.groupBy { toDateKey(it.scheduledAtMillis) }
+    }
+
+    val displayedSchedules = remember(state.schedules, activeFilter, selectedDateKey) {
+        val base = when (activeFilter) {
             ScheduleTabFilter.UPCOMING -> state.schedules.filter { !it.completed }.sortedBy { it.scheduledAtMillis }
             ScheduleTabFilter.COMPLETED -> state.schedules.filter { it.completed }.sortedByDescending { it.scheduledAtMillis }
             ScheduleTabFilter.ALL -> state.schedules.sortedBy { it.scheduledAtMillis }
+        }
+        if (selectedDateKey == null) base else base.filter { toDateKey(it.scheduledAtMillis) == selectedDateKey }
+    }
+
+    fun addToGoogleCalendar(schedule: InterviewSchedule) {
+        val endMillis = schedule.scheduledAtMillis + (schedule.durationMinutes.coerceAtLeast(15L) * 60_000L)
+        val descParts = buildList {
+            add("Posisi: ${schedule.roleTitle}")
+            add("Perusahaan: ${schedule.companyName}")
+            if (schedule.interviewerName.isNotBlank()) add("Pewawancara: ${schedule.interviewerName}")
+            if (schedule.prepNotes.isNotBlank()) add("\nCatatan Persiapan:\n${schedule.prepNotes}")
+        }
+        val intent = Intent(Intent.ACTION_INSERT).apply {
+            data = CalendarContract.Events.CONTENT_URI
+            putExtra(CalendarContract.EXTRA_EVENT_BEGIN_TIME, schedule.scheduledAtMillis)
+            putExtra(CalendarContract.EXTRA_EVENT_END_TIME, endMillis)
+            putExtra(CalendarContract.Events.TITLE, "${schedule.stageTitle} — ${schedule.companyName}")
+            putExtra(CalendarContract.Events.DESCRIPTION, descParts.joinToString("\n"))
+            if (schedule.meetingLocation.isNotBlank()) {
+                putExtra(CalendarContract.Events.EVENT_LOCATION, schedule.meetingLocation)
+            }
+        }
+        try {
+            context.startActivity(intent)
+        } catch (_: Exception) {
         }
     }
 
@@ -176,7 +229,7 @@ fun JadwalScreen(
                             )
                         }
                         Text(
-                            text = "${upcomingList.size} AKTIF",
+                            text = "${upcomingList.size} MENDATANG",
                             style = MonoMetricStyle,
                             color = colors.heroOnDarkMuted
                         )
@@ -215,7 +268,7 @@ fun JadwalScreen(
                             color = colors.heroOnDark
                         )
                         Text(
-                            text = "Catat setiap sesi HR Screening, User Interview, atau Technical Test agar tidak ada momentum terlewat.",
+                            text = "Catat setiap sesi HR Screening, User Interview, atau Technical Test supaya tidak ada jadwal yang terlewat.",
                             style = MaterialTheme.typography.bodyMedium,
                             color = colors.heroOnDarkMuted
                         )
@@ -242,9 +295,31 @@ fun JadwalScreen(
             }
         }
 
+        // Interactive 7-Day Week Strip Calendar
+        item(key = "jadwal_week_strip") {
+            WeekStripCalendarCard(
+                weekOffset = weekOffset,
+                selectedDateKey = selectedDateKey,
+                schedulesByDateKey = schedulesByDateKey,
+                onPrevWeek = { weekOffset -= 1 },
+                onNextWeek = { weekOffset += 1 },
+                onResetToday = {
+                    weekOffset = 0
+                    selectedDateKey = null
+                },
+                onSelectDate = { key ->
+                    selectedDateKey = if (selectedDateKey == key) null else key
+                }
+            )
+        }
+
         // Filter Pills
         item(key = "jadwal_filters") {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 ScheduleTabFilter.entries.forEach { tab ->
                     val selected = activeFilter == tab
                     Surface(
@@ -269,16 +344,26 @@ fun JadwalScreen(
         // Schedule List or Empty State
         if (displayedSchedules.isEmpty()) {
             item(key = "jadwal_empty") {
-                ExpressiveEmptyStateCard(
-                    eyebrow = "TIMELINE KOSONG",
-                    title = if (activeFilter == ScheduleTabFilter.COMPLETED) "Belum Ada Sesi Selesai" else "Belum Ada Jadwal Terdaftar",
-                    description = "Tambahkan agenda wawancara beserta link meeting, nama pewawancara, dan catatan persiapanmu.",
-                    ctaLabel = "+ Buat Jadwal Interview",
-                    onCtaClick = {
-                        editingSchedule = null
-                        showSheet = true
-                    }
-                )
+                if (selectedDateKey != null) {
+                    ExpressiveEmptyStateCard(
+                        eyebrow = "TANGGAL KOSONG",
+                        title = "Tidak Ada Jadwal di Hari Ini",
+                        description = "Belum ada agenda interview pada tanggal yang dipilih. Kamu bisa tambah jadwal baru atau tampilkan semua jadwal.",
+                        ctaLabel = "Tampilkan Semua Jadwal",
+                        onCtaClick = { selectedDateKey = null }
+                    )
+                } else {
+                    ExpressiveEmptyStateCard(
+                        eyebrow = "BELUM ADA JADWAL",
+                        title = if (activeFilter == ScheduleTabFilter.COMPLETED) "Belum Ada Sesi Selesai" else "Belum Ada Jadwal Interview",
+                        description = "Tambahkan jadwal wawancara lengkap dengan link meeting, nama pewawancara, dan catatan persiapanmu.",
+                        ctaLabel = "+ Buat Jadwal Interview",
+                        onCtaClick = {
+                            editingSchedule = null
+                            showSheet = true
+                        }
+                    )
+                }
             }
         } else {
             items(displayedSchedules, key = { it.id }) { schedule ->
@@ -290,6 +375,7 @@ fun JadwalScreen(
                         showSheet = true
                     },
                     onDelete = { onDeleteSchedule(schedule.id) },
+                    onAddToCalendar = { addToGoogleCalendar(schedule) },
                     onOpenLink = { url ->
                         val normalized = if (url.startsWith("http://") || url.startsWith("https://")) url else "https://$url"
                         try {
@@ -338,11 +424,290 @@ fun JadwalScreen(
 }
 
 @Composable
+private fun WeekStripCalendarCard(
+    weekOffset: Int,
+    selectedDateKey: String?,
+    schedulesByDateKey: Map<String, List<InterviewSchedule>>,
+    onPrevWeek: () -> Unit,
+    onNextWeek: () -> Unit,
+    onResetToday: () -> Unit,
+    onSelectDate: (String) -> Unit
+) {
+    val colors = KarirKuThemeTokens.colors
+    val todayKey = remember { toDateKey(System.currentTimeMillis()) }
+
+    val weekDays = remember(weekOffset) {
+        val dayLabels = listOf("Sen", "Sel", "Rab", "Kam", "Jum", "Sab", "Min")
+        val cal = Calendar.getInstance().apply {
+            firstDayOfWeek = Calendar.MONDAY
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+            val currentDow = get(Calendar.DAY_OF_WEEK)
+            val diffFromMonday = if (currentDow == Calendar.SUNDAY) -6 else Calendar.MONDAY - currentDow
+            add(Calendar.DAY_OF_MONTH, diffFromMonday + (weekOffset * 7))
+        }
+        (0..6).map { idx ->
+            val millis = cal.timeInMillis
+            val key = toDateKey(millis)
+            val dayNum = cal.get(Calendar.DAY_OF_MONTH).toString()
+            cal.add(Calendar.DAY_OF_MONTH, 1)
+            WeekDaySlot(
+                dateKey = key,
+                dayShort = dayLabels[idx],
+                dayNumber = dayNum,
+                isToday = key == todayKey,
+                millis = millis
+            )
+        }
+    }
+
+    val monthTitle = remember(weekDays) {
+        val midMillis = weekDays.getOrNull(3)?.millis ?: System.currentTimeMillis()
+        SimpleDateFormat("MMMM yyyy", Locale("in", "ID"))
+            .format(Date(midMillis))
+            .replaceFirstChar { it.uppercase() }
+    }
+
+    val selectedSlot = remember(selectedDateKey, weekDays) {
+        weekDays.firstOrNull { it.dateKey == selectedDateKey }
+    }
+
+    TactileRaisedCard(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("jadwal_week_strip"),
+        cornerRadius = 22.dp,
+        lipDepth = 2.5.dp
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            // Header row with week arrows & month title
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text(
+                        text = monthTitle,
+                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.ExtraBold),
+                        color = colors.textPrimary,
+                        maxLines = 1
+                    )
+                    if (weekOffset != 0 || selectedDateKey != null) {
+                        Surface(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(999.dp))
+                                .tactileClickable(onClick = onResetToday)
+                                .testTag("jadwal_week_today_button"),
+                            shape = RoundedCornerShape(999.dp),
+                            color = colors.amberSoftBg,
+                            border = BorderStroke(1.dp, colors.accentAmber.copy(alpha = 0.35f))
+                        ) {
+                            Text(
+                                text = "Hari Ini",
+                                style = MonoEyebrowStyle.copy(fontSize = 9.sp, letterSpacing = 0.2.sp),
+                                color = colors.amberText,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
+                    }
+                }
+
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Box(
+                        modifier = Modifier
+                            .size(34.dp)
+                            .clip(CircleShape)
+                            .background(colors.recessedSurface)
+                            .border(1.dp, colors.borderSubtle, CircleShape)
+                            .tactileClickable(onClick = onPrevWeek)
+                            .testTag("jadwal_prev_week_button"),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowLeft,
+                            contentDescription = "Pekan sebelumnya",
+                            tint = colors.textPrimary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    Box(
+                        modifier = Modifier
+                            .size(34.dp)
+                            .clip(CircleShape)
+                            .background(colors.recessedSurface)
+                            .border(1.dp, colors.borderSubtle, CircleShape)
+                            .tactileClickable(onClick = onNextWeek)
+                            .testTag("jadwal_next_week_button"),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+                            contentDescription = "Pekan berikutnya",
+                            tint = colors.textPrimary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
+            }
+
+            // 7-day interactive row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(5.dp)
+            ) {
+                weekDays.forEach { slot ->
+                    val isSelected = selectedDateKey == slot.dateKey
+                    val daySchedules = schedulesByDateKey[slot.dateKey].orEmpty()
+                    val hasUpcoming = daySchedules.any { !it.completed }
+                    val hasAny = daySchedules.isNotEmpty()
+
+                    val tileBg = when {
+                        isSelected -> colors.heroDarkSurface
+                        slot.isToday -> colors.amberSoftBg
+                        else -> colors.recessedSurface.copy(alpha = 0.65f)
+                    }
+                    val tileBorder = when {
+                        isSelected -> colors.heroDarkSurface
+                        slot.isToday -> colors.accentAmber.copy(alpha = 0.55f)
+                        else -> colors.borderSubtle.copy(alpha = 0.7f)
+                    }
+                    val dayLabelColor = when {
+                        isSelected -> colors.heroOnDarkMuted
+                        slot.isToday -> colors.amberText
+                        else -> colors.textMuted
+                    }
+                    val numberColor = when {
+                        isSelected -> colors.heroOnDark
+                        slot.isToday -> colors.amberText
+                        else -> colors.textPrimary
+                    }
+                    val dotColor = when {
+                        hasUpcoming -> colors.accentAmber
+                        hasAny -> colors.accentEmerald
+                        else -> Color.Transparent
+                    }
+
+                    Surface(
+                        modifier = Modifier
+                            .weight(1f)
+                            .then(
+                                if (isSelected) {
+                                    Modifier.modernColoredShadow(
+                                        color = colors.heroDarkSurface.copy(alpha = 0.28f),
+                                        cornerRadius = 14.dp,
+                                        blurRadius = 10.dp,
+                                        offsetY = 4.dp
+                                    )
+                                } else Modifier
+                            )
+                            .clip(RoundedCornerShape(14.dp))
+                            .tactileClickable { onSelectDate(slot.dateKey) }
+                            .testTag("jadwal_day_${slot.dateKey}"),
+                        shape = RoundedCornerShape(14.dp),
+                        color = tileBg,
+                        border = BorderStroke(1.dp, tileBorder)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(vertical = 8.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Text(
+                                text = slot.dayShort,
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                ),
+                                color = dayLabelColor,
+                                maxLines = 1,
+                                softWrap = false
+                            )
+                            Text(
+                                text = slot.dayNumber,
+                                style = MaterialTheme.typography.titleSmall.copy(
+                                    fontWeight = FontWeight.ExtraBold,
+                                    fontSize = 14.sp
+                                ),
+                                color = numberColor,
+                                maxLines = 1,
+                                softWrap = false
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .size(6.dp)
+                                    .clip(CircleShape)
+                                    .background(dotColor)
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Active selected day indicator chip
+            if (selectedDateKey != null) {
+                val displayDate = selectedSlot?.let { KarirKuFormatters.formatDateEditorial(it.millis) } ?: selectedDateKey
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .tactileClickable { onSelectDate(selectedDateKey) },
+                    shape = RoundedCornerShape(12.dp),
+                    color = colors.recessedSurface,
+                    border = BorderStroke(1.dp, colors.borderSubtle)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = "Menampilkan jadwal $displayDate",
+                            style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold),
+                            color = colors.textSecondary,
+                            modifier = Modifier.weight(1f),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(3.dp)
+                        ) {
+                            Text(
+                                text = "Reset",
+                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                color = colors.accentAmber
+                            )
+                            Icon(
+                                imageVector = Icons.Outlined.Close,
+                                contentDescription = "Reset filter tanggal",
+                                tint = colors.accentAmber,
+                                modifier = Modifier.size(14.dp)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
 private fun ScheduleTimelineCard(
     schedule: InterviewSchedule,
     onToggleComplete: () -> Unit,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
+    onAddToCalendar: () -> Unit,
     onOpenLink: (String) -> Unit
 ) {
     val colors = KarirKuThemeTokens.colors
@@ -350,6 +715,12 @@ private fun ScheduleTimelineCard(
     val monthStr = remember(dateObj) { SimpleDateFormat("MMM", Locale("in", "ID")).format(dateObj).uppercase() }
     val dayStr = remember(dateObj) { SimpleDateFormat("dd", Locale("in", "ID")).format(dateObj) }
     val timeStr = remember(schedule.scheduledAtMillis) { KarirKuFormatters.formatTime(schedule.scheduledAtMillis) }
+    val isMeetingUrl = remember(schedule.meetingLocation) {
+        val trimmed = schedule.meetingLocation.trim()
+        trimmed.startsWith("http://") ||
+            trimmed.startsWith("https://") ||
+            (trimmed.contains(".") && !trimmed.contains(" "))
+    }
 
     TactileRaisedCard(
         modifier = Modifier
@@ -470,20 +841,6 @@ private fun ScheduleTimelineCard(
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
-                        val isUrl = schedule.meetingLocation.contains(".") && !schedule.meetingLocation.contains(" ")
-                        if (isUrl) {
-                            IconButton(
-                                onClick = { onOpenLink(schedule.meetingLocation) },
-                                modifier = Modifier.size(28.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Outlined.OpenInNew,
-                                    contentDescription = "Buka tautan meeting",
-                                    tint = colors.accentBlue,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                            }
-                        }
                     }
 
                     if (schedule.interviewerName.isNotBlank()) {
@@ -511,6 +868,75 @@ private fun ScheduleTimelineCard(
                             text = schedule.prepNotes,
                             style = MaterialTheme.typography.bodySmall,
                             color = colors.textMuted
+                        )
+                    }
+                }
+            }
+
+            // Direct Action Pills: Buka Meeting & Simpan ke Kalender
+            FlowRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                if (isMeetingUrl) {
+                    Surface(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .tactileClickable { onOpenLink(schedule.meetingLocation.trim()) }
+                            .testTag("schedule_open_meeting_${schedule.id}"),
+                        shape = RoundedCornerShape(12.dp),
+                        color = colors.heroDarkSurface,
+                        border = BorderStroke(1.dp, colors.heroDarkSurface)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.OpenInNew,
+                                contentDescription = null,
+                                tint = colors.accentAmber,
+                                modifier = Modifier.size(15.dp)
+                            )
+                            Text(
+                                text = "Buka Link Meeting",
+                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                color = colors.heroOnDark,
+                                maxLines = 1,
+                                softWrap = false
+                            )
+                        }
+                    }
+                }
+
+                Surface(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(12.dp))
+                        .tactileClickable(onClick = onAddToCalendar)
+                        .testTag("schedule_add_calendar_${schedule.id}"),
+                    shape = RoundedCornerShape(12.dp),
+                    color = colors.blueSoftBg,
+                    border = BorderStroke(1.dp, colors.accentBlue.copy(alpha = 0.35f))
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.EventAvailable,
+                            contentDescription = null,
+                            tint = colors.accentBlue,
+                            modifier = Modifier.size(15.dp)
+                        )
+                        Text(
+                            text = "Tambah ke Google Calendar",
+                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                            color = colors.accentBlue,
+                            maxLines = 1,
+                            softWrap = false
                         )
                     }
                 }
@@ -612,10 +1038,10 @@ private fun ScheduleEditorBottomSheet(
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp)
                 .padding(bottom = 32.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Text(
-                text = if (existingSchedule == null) "TAMBAH AGENDA" else "EDIT AGENDA",
+                text = if (existingSchedule == null) "JADWAL BARU" else "EDIT JADWAL",
                 style = MonoEyebrowStyle,
                 color = colors.accentAmber
             )
@@ -663,112 +1089,124 @@ private fun ScheduleEditorBottomSheet(
                 Text(errorMsg!!, style = MaterialTheme.typography.bodySmall, color = colors.accentCrimson)
             }
 
-            OutlinedTextField(
-                value = companyName,
-                onValueChange = { companyName = it.take(120) },
-                label = { Text("Perusahaan *") },
-                singleLine = true,
-                shape = RoundedCornerShape(14.dp),
-                modifier = Modifier.fillMaxWidth()
-            )
-            OutlinedTextField(
-                value = roleTitle,
-                onValueChange = { roleTitle = it.take(120) },
-                label = { Text("Posisi / Peran *") },
-                singleLine = true,
-                shape = RoundedCornerShape(14.dp),
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                listOf("HR Screening", "Interview User", "Technical Test", "Final Offer").forEach { preset ->
-                    val sel = stageTitle.equals(preset, ignoreCase = true)
-                    Surface(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(10.dp))
-                            .tactileClickable { stageTitle = preset },
-                        shape = RoundedCornerShape(10.dp),
-                        color = if (sel) colors.heroDarkSurface else colors.recessedSurface
-                    ) {
-                        Text(
-                            text = preset,
-                            style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold),
-                            color = if (sel) colors.heroOnDark else colors.textSecondary,
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
-                        )
-                    }
-                }
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("PERUSAHAAN *", style = MonoEyebrowStyle, color = colors.textMuted)
+                KarirKuCompactTextField(
+                    value = companyName,
+                    onValueChange = { companyName = it.take(120) },
+                    placeholder = "Contoh: GoTo Financial",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("schedule_company_input")
+                )
             }
 
-            OutlinedTextField(
-                value = stageTitle,
-                onValueChange = { stageTitle = it.take(80) },
-                label = { Text("Nama Tahap *") },
-                singleLine = true,
-                shape = RoundedCornerShape(14.dp),
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            // Date & 30-minute step Time Selector
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                Surface(
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("POSISI YANG DILAMAR *", style = MonoEyebrowStyle, color = colors.textMuted)
+                KarirKuCompactTextField(
+                    value = roleTitle,
+                    onValueChange = { roleTitle = it.take(120) },
+                    placeholder = "Contoh: Senior Product Designer",
                     modifier = Modifier
-                        .weight(1.2f)
-                        .height(52.dp)
-                        .clip(RoundedCornerShape(14.dp))
-                        .tactileClickable { showDatePicker = true },
-                    shape = RoundedCornerShape(14.dp),
-                    color = colors.recessedSurface,
-                    border = BorderStroke(1.dp, colors.borderSubtle)
+                        .fillMaxWidth()
+                        .testTag("schedule_role_input")
+                )
+            }
+
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("TAHAP WAWANCARA *", style = MonoEyebrowStyle, color = colors.textMuted)
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(
-                            text = KarirKuFormatters.formatDateShort(dateMillis),
-                            style = MonoMetricStyle,
-                            color = colors.textPrimary
-                        )
-                        Icon(Icons.Outlined.CalendarToday, contentDescription = null, modifier = Modifier.size(16.dp))
+                    listOf("HR Screening", "Interview User", "Technical Test", "Final Offer").forEach { preset ->
+                        val sel = stageTitle.equals(preset, ignoreCase = true)
+                        Surface(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(10.dp))
+                                .tactileClickable { stageTitle = preset },
+                            shape = RoundedCornerShape(10.dp),
+                            color = if (sel) colors.heroDarkSurface else colors.recessedSurface
+                        ) {
+                            Text(
+                                text = preset,
+                                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold),
+                                color = if (sel) colors.heroOnDark else colors.textSecondary,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                            )
+                        }
                     }
                 }
-
-                Surface(
+                KarirKuCompactTextField(
+                    value = stageTitle,
+                    onValueChange = { stageTitle = it.take(80) },
+                    placeholder = "Contoh: Interview User",
                     modifier = Modifier
-                        .weight(1f)
-                        .height(52.dp)
-                        .clip(RoundedCornerShape(14.dp))
-                        .tactileClickable {
-                            if (selectedMinute == 0) {
-                                selectedMinute = 30
-                            } else {
-                                selectedMinute = 0
-                                selectedHour = if (selectedHour >= 19) 8 else selectedHour + 1
-                            }
-                        },
-                    shape = RoundedCornerShape(14.dp),
-                    color = colors.recessedSurface,
-                    border = BorderStroke(1.dp, colors.borderSubtle)
+                        .fillMaxWidth()
+                        .testTag("schedule_stage_input")
+                )
+            }
+
+            // Date & 30-minute step Time Selector (matched 48dp compact height)
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("TANGGAL & JAM", style = MonoEyebrowStyle, color = colors.textMuted)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
+                    Surface(
+                        modifier = Modifier
+                            .weight(1.2f)
+                            .height(48.dp)
+                            .clip(RoundedCornerShape(14.dp))
+                            .tactileClickable { showDatePicker = true },
+                        shape = RoundedCornerShape(14.dp),
+                        color = colors.recessedSurface,
+                        border = BorderStroke(1.dp, colors.borderSubtle)
                     ) {
-                        Text(
-                            text = "${selectedHour.toString().padStart(2, '0')}:${selectedMinute.toString().padStart(2, '0')} WIB",
-                            style = MonoMetricStyle,
-                            color = colors.textPrimary
-                        )
-                        Icon(Icons.Outlined.AccessTime, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = KarirKuFormatters.formatDateShort(dateMillis),
+                                style = MonoMetricStyle,
+                                color = colors.textPrimary
+                            )
+                            Icon(Icons.Outlined.CalendarToday, contentDescription = null, modifier = Modifier.size(16.dp))
+                        }
+                    }
+
+                    Surface(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(48.dp)
+                            .clip(RoundedCornerShape(14.dp))
+                            .tactileClickable {
+                                if (selectedMinute == 0) {
+                                    selectedMinute = 30
+                                } else {
+                                    selectedMinute = 0
+                                    selectedHour = if (selectedHour >= 19) 8 else selectedHour + 1
+                                }
+                            },
+                        shape = RoundedCornerShape(14.dp),
+                        color = colors.recessedSurface,
+                        border = BorderStroke(1.dp, colors.borderSubtle)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = "${selectedHour.toString().padStart(2, '0')}:${selectedMinute.toString().padStart(2, '0')} WIB",
+                                style = MonoMetricStyle,
+                                color = colors.textPrimary
+                            )
+                            Icon(Icons.Outlined.AccessTime, contentDescription = null, modifier = Modifier.size(16.dp))
+                        }
                     }
                 }
             }
@@ -814,31 +1252,44 @@ private fun ScheduleEditorBottomSheet(
                 }
             }
 
-            OutlinedTextField(
-                value = meetingLocation,
-                onValueChange = { meetingLocation = it.take(300) },
-                label = { Text("Link Meeting / Alamat Kantor") },
-                singleLine = true,
-                shape = RoundedCornerShape(14.dp),
-                modifier = Modifier.fillMaxWidth()
-            )
-            OutlinedTextField(
-                value = interviewerName,
-                onValueChange = { interviewerName = it.take(120) },
-                label = { Text("Nama Pewawancara (HR / User)") },
-                singleLine = true,
-                shape = RoundedCornerShape(14.dp),
-                modifier = Modifier.fillMaxWidth()
-            )
-            OutlinedTextField(
-                value = prepNotes,
-                onValueChange = { prepNotes = it.take(2000) },
-                label = { Text("Catatan Persiapan") },
-                minLines = 2,
-                maxLines = 5,
-                shape = RoundedCornerShape(14.dp),
-                modifier = Modifier.fillMaxWidth()
-            )
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("LINK MEETING / ALAMAT KANTOR", style = MonoEyebrowStyle, color = colors.textMuted)
+                KarirKuCompactTextField(
+                    value = meetingLocation,
+                    onValueChange = { meetingLocation = it.take(300) },
+                    placeholder = "https://meet.google.com/... atau lokasi kantor",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("schedule_location_input")
+                )
+            }
+
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("NAMA PEWAWANCARA (HR / USER)", style = MonoEyebrowStyle, color = colors.textMuted)
+                KarirKuCompactTextField(
+                    value = interviewerName,
+                    onValueChange = { interviewerName = it.take(120) },
+                    placeholder = "Contoh: Rina (HRBP)",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("schedule_interviewer_input")
+                )
+            }
+
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("CATATAN PERSIAPAN", style = MonoEyebrowStyle, color = colors.textMuted)
+                KarirKuCompactTextField(
+                    value = prepNotes,
+                    onValueChange = { prepNotes = it.take(2000) },
+                    placeholder = "Daftar pertanyaan, bahan presentasi, atau poin penting...",
+                    singleLine = false,
+                    minLines = 2,
+                    maxLines = 5,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("schedule_notes_input")
+                )
+            }
 
             TactileRaisedButton(
                 onClick = {

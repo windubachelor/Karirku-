@@ -123,7 +123,7 @@ class KarirKuViewModel(
         )
 
     private val profileFlow: StateFlow<UiState<UserProfile?>> =
-        safeUiFlow(repository.observeUserProfile(currentUserId), "Gagal memuat profil dossier")
+        safeUiFlow(repository.observeUserProfile(currentUserId), "Gagal memuat profil")
 
     private val applicationsFlow: StateFlow<UiState<List<JobApplication>>> =
         safeUiFlow(repository.observeApplications(currentUserId), "Gagal memuat daftar lamaran")
@@ -132,7 +132,7 @@ class KarirKuViewModel(
         safeUiFlow(repository.observeSchedules(currentUserId), "Gagal memuat jadwal interview")
 
     private val documentsFlow: StateFlow<UiState<List<CareerDocument>>> =
-        safeUiFlow(repository.observeDocuments(currentUserId), "Gagal memuat dokumen dossier")
+        safeUiFlow(repository.observeDocuments(currentUserId), "Gagal memuat dokumen")
 
     val dashboardState: StateFlow<KarirKuDashboardState> = combine(
         profileFlow,
@@ -205,6 +205,9 @@ class KarirKuViewModel(
     ) {
         viewModelScope.launch {
             _isSaving.value = true
+            val existingApp = existingId?.let { id ->
+                dashboardState.value.applications.firstOrNull { it.id == id }
+            }
             val result = repository.saveApplication(
                 userId = currentUserId,
                 existingId = existingId,
@@ -222,12 +225,14 @@ class KarirKuViewModel(
                 notes = notes,
                 hrContact = hrContact,
                 attachments = attachments,
-                starred = starred
+                starred = starred,
+                existingHistory = existingApp?.stageHistory.orEmpty(),
+                previousStatus = existingApp?.statusEnum
             )
             _isSaving.value = false
             result.onSuccess {
                 _snackbarEvents.tryEmit(
-                    if (existingId.isNullOrBlank()) "Lamaran berhasil disimpan ke Dossier"
+                    if (existingId.isNullOrBlank()) "Lamaran berhasil disimpan"
                     else "Perubahan lamaran tersimpan"
                 )
                 onSuccess()
@@ -248,9 +253,16 @@ class KarirKuViewModel(
 
     fun updateApplicationStatus(applicationId: String, status: ApplicationStatus) {
         viewModelScope.launch {
-            repository.updateApplicationStatus(currentUserId, applicationId, status)
+            val existingApp = dashboardState.value.applications.firstOrNull { it.id == applicationId }
+            if (existingApp?.statusEnum == status) return@launch
+            repository.updateApplicationStatus(
+                userId = currentUserId,
+                applicationId = applicationId,
+                status = status,
+                existingHistory = existingApp?.stageHistory.orEmpty()
+            )
                 .onSuccess {
-                    _snackbarEvents.tryEmit("Status diperbarui ke ${status.label}")
+                    _snackbarEvents.tryEmit("Status diperbarui ke ${status.shortLabel}")
                 }
                 .onFailure { err ->
                     _snackbarEvents.tryEmit(err.localizedMessage ?: "Gagal memperbarui status")
@@ -262,7 +274,7 @@ class KarirKuViewModel(
         viewModelScope.launch {
             repository.deleteApplication(currentUserId, applicationId)
                 .onSuccess {
-                    _snackbarEvents.tryEmit("Lamaran dihapus dari dossier")
+                    _snackbarEvents.tryEmit("Lamaran berhasil dihapus")
                     onSuccess()
                 }
                 .onFailure { err ->
@@ -362,7 +374,7 @@ class KarirKuViewModel(
             )
             _isSaving.value = false
             result.onSuccess {
-                _snackbarEvents.tryEmit("Dokumen dossier tersimpan")
+                _snackbarEvents.tryEmit("Dokumen berhasil disimpan")
                 onSuccess()
             }.onFailure { err ->
                 _snackbarEvents.tryEmit(err.localizedMessage ?: "Gagal menyimpan dokumen")
@@ -398,7 +410,7 @@ class KarirKuViewModel(
             )
             _isSaving.value = false
             result.onSuccess {
-                _snackbarEvents.tryEmit("Profil dossier diperbarui")
+                _snackbarEvents.tryEmit("Profil berhasil diperbarui")
                 onSuccess()
             }.onFailure { err ->
                 _snackbarEvents.tryEmit(err.localizedMessage ?: "Gagal memperbarui profil")

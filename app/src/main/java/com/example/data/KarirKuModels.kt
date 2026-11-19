@@ -129,6 +129,7 @@ data class JobApplication(
     val notes: String = "",
     val hrContact: String = "",
     val attachments: List<String> = emptyList(),
+    val stageHistory: List<String> = emptyList(),
     val starred: Boolean = false,
     @ServerTimestamp val createdAt: Timestamp? = null,
     @ServerTimestamp val updatedAt: Timestamp? = null
@@ -141,6 +142,59 @@ data class JobApplication(
 
     val contractTypeEnum: ContractType
         get() = ContractType.fromRaw(contractType)
+
+    /**
+     * Returns chronological timeline events (newest first for display),
+     * gracefully synthesizing an entry for older records created before stageHistory existed.
+     */
+    fun parsedTimeline(): List<StageHistoryEvent> {
+        val parsed = stageHistory.mapNotNull { StageHistoryEvent.decode(it) }
+        if (parsed.isNotEmpty()) {
+            return parsed.sortedByDescending { it.timestampMillis }
+        }
+        val fallbackList = mutableListOf<StageHistoryEvent>()
+        val createdMs = createdAt?.toDate()?.time ?: appliedDateMillis.takeIf { it > 0L } ?: System.currentTimeMillis()
+        val updatedMs = updatedAt?.toDate()?.time ?: createdMs
+        if (appliedDateMillis > 0L && statusEnum != ApplicationStatus.DISIMPAN && statusEnum != ApplicationStatus.DILAMAR) {
+            fallbackList.add(
+                StageHistoryEvent(
+                    status = ApplicationStatus.DILAMAR,
+                    timestampMillis = appliedDateMillis,
+                    note = "Lamaran dikirim"
+                )
+            )
+        }
+        fallbackList.add(
+            StageHistoryEvent(
+                status = statusEnum,
+                timestampMillis = maxOf(createdMs, updatedMs),
+                note = "Tahap saat ini: ${statusEnum.badgeText}"
+            )
+        )
+        return fallbackList.sortedByDescending { it.timestampMillis }
+    }
+}
+
+data class StageHistoryEvent(
+    val status: ApplicationStatus,
+    val timestampMillis: Long,
+    val note: String
+) {
+    fun encode(): String {
+        val cleanNote = note.replace("|", " ").trim().take(120)
+        return "${status.name}|$timestampMillis|$cleanNote"
+    }
+
+    companion object {
+        fun decode(raw: String): StageHistoryEvent? {
+            val parts = raw.split("|")
+            if (parts.size < 2) return null
+            val st = ApplicationStatus.fromRaw(parts[0])
+            val ts = parts[1].toLongOrNull() ?: return null
+            val note = parts.getOrNull(2).orEmpty().ifBlank { "Pindah ke ${st.shortLabel}" }
+            return StageHistoryEvent(status = st, timestampMillis = ts, note = note)
+        }
+    }
 }
 
 @Keep
@@ -245,6 +299,11 @@ object KarirKuFormatters {
     fun formatTime(millis: Long): String {
         if (millis <= 0L) return "--:--"
         return SimpleDateFormat("HH:mm", indonesiaLocale).format(Date(millis))
+    }
+
+    fun formatDateTimeShort(millis: Long): String {
+        if (millis <= 0L) return "-"
+        return SimpleDateFormat("dd MMM yyyy • HH:mm", indonesiaLocale).format(Date(millis))
     }
 
     fun formatRelativeTime(timestamp: Timestamp?): String {

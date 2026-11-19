@@ -310,26 +310,36 @@ class KarirKuRepository(
         notes: String,
         hrContact: String,
         attachments: List<String>,
-        starred: Boolean
+        starred: Boolean,
+        existingHistory: List<String> = emptyList(),
+        previousStatus: ApplicationStatus? = null
     ): Result<String> {
         var docPath = "users/$userId/applications"
         return try {
             val uid = requireVerifiedUid(userId)
             val cleanRole = roleTitle.trim().take(120)
             val cleanCompany = companyName.trim().take(120)
-            require(cleanRole.isNotEmpty()) { "Judul peran wajib diisi." }
+            require(cleanRole.isNotEmpty()) { "Judul posisi wajib diisi." }
             require(cleanCompany.isNotEmpty()) { "Nama perusahaan wajib diisi." }
 
             val safeMin = salaryMin.coerceIn(0L, 10_000_000_000L)
             val safeMax = salaryMax.coerceIn(0L, 10_000_000_000L)
             val cleanAttachments = attachments.map { it.trim().take(200) }.filter { it.isNotEmpty() }.take(10)
             val colRef = db.collection("users").document(uid).collection("applications")
+            val nowMs = System.currentTimeMillis()
 
             if (existingId.isNullOrBlank()) {
                 val docRef = colRef.document()
                 docPath = docRef.path
                 val code = existingDossierCode?.takeIf { it.isNotBlank() }?.take(20)
                     ?: KarirKuFormatters.generateDossierCode()
+                val initialHistory = listOf(
+                    StageHistoryEvent(
+                        status = status,
+                        timestampMillis = nowMs,
+                        note = "Lamaran dicatat (${status.shortLabel})"
+                    ).encode()
+                )
                 val payload = mapOf(
                     "userId" to uid,
                     "dossierCode" to code,
@@ -346,6 +356,7 @@ class KarirKuRepository(
                     "notes" to notes.trim().take(3000),
                     "hrContact" to hrContact.trim().take(200),
                     "attachments" to cleanAttachments,
+                    "stageHistory" to initialHistory,
                     "starred" to starred,
                     "createdAt" to FieldValue.serverTimestamp(),
                     "updatedAt" to FieldValue.serverTimestamp()
@@ -355,6 +366,25 @@ class KarirKuRepository(
             } else {
                 val docRef = colRef.document(existingId)
                 docPath = docRef.path
+                val updatedHistory = existingHistory.toMutableList()
+                if (previousStatus == null || previousStatus != status) {
+                    updatedHistory.add(
+                        StageHistoryEvent(
+                            status = status,
+                            timestampMillis = nowMs,
+                            note = "Status diubah ke ${status.shortLabel}"
+                        ).encode()
+                    )
+                } else if (updatedHistory.isEmpty()) {
+                    updatedHistory.add(
+                        StageHistoryEvent(
+                            status = status,
+                            timestampMillis = nowMs,
+                            note = "Data lamaran diperbarui"
+                        ).encode()
+                    )
+                }
+                val trimmedHistory = updatedHistory.takeLast(30)
                 val updates = mapOf(
                     "roleTitle" to cleanRole,
                     "companyName" to cleanCompany,
@@ -369,6 +399,7 @@ class KarirKuRepository(
                     "notes" to notes.trim().take(3000),
                     "hrContact" to hrContact.trim().take(200),
                     "attachments" to cleanAttachments,
+                    "stageHistory" to trimmedHistory,
                     "starred" to starred,
                     "updatedAt" to FieldValue.serverTimestamp()
                 )
@@ -416,17 +447,24 @@ class KarirKuRepository(
     suspend fun updateApplicationStatus(
         userId: String,
         applicationId: String,
-        status: ApplicationStatus
+        status: ApplicationStatus,
+        existingHistory: List<String> = emptyList()
     ): Result<Unit> {
         val docPath = "users/$userId/applications/$applicationId"
         return try {
             val uid = requireVerifiedUid(userId)
             require(applicationId.isNotBlank()) { "ID lamaran tidak valid." }
+            val nextHistory = (existingHistory + StageHistoryEvent(
+                status = status,
+                timestampMillis = System.currentTimeMillis(),
+                note = "Pindah ke tahap ${status.shortLabel}"
+            ).encode()).takeLast(30)
             db.collection("users").document(uid).collection("applications")
                 .document(applicationId)
                 .update(
                     mapOf(
                         "status" to status.name,
+                        "stageHistory" to nextHistory,
                         "updatedAt" to FieldValue.serverTimestamp()
                     )
                 ).await()
