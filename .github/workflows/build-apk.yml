@@ -134,6 +134,72 @@ jobs:
             | awk '/SHA1:/ {print $2; exit}' || true)"
           echo "release_sha1=${RELEASE_SHA1:-N/A}" >> "$GITHUB_OUTPUT"
 
+      - name: Prepare google-services.json
+        id: google_services
+        env:
+          SECRET_GS_B64: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}
+          SECRET_GS_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          set -euo pipefail
+          GS_PATH="app/google-services.json"
+
+          if [ -f "${GS_PATH}" ]; then
+            echo "mode=repo" >> "$GITHUB_OUTPUT"
+            echo "Using app/google-services.json from repository"
+          elif [ -n "${SECRET_GS_B64}" ]; then
+            printf '%s' "${SECRET_GS_B64}" | tr -d '\r\n ' | base64 -d > "${GS_PATH}"
+            echo "mode=secret_base64" >> "$GITHUB_OUTPUT"
+            echo "Restored app/google-services.json from GOOGLE_SERVICES_JSON_BASE64 secret"
+          elif [ -n "${SECRET_GS_JSON}" ]; then
+            printf '%s\n' "${SECRET_GS_JSON}" > "${GS_PATH}"
+            echo "mode=secret_json" >> "$GITHUB_OUTPUT"
+            echo "Restored app/google-services.json from GOOGLE_SERVICES_JSON secret"
+          else
+            cat <<'EOF' > "${GS_PATH}"
+          {
+            "project_info": {
+              "project_number": "000000000000",
+              "project_id": "karirku-ci-placeholder",
+              "storage_bucket": "karirku-ci-placeholder.firebasestorage.app"
+            },
+            "client": [
+              {
+                "client_info": {
+                  "mobilesdk_app_id": "1:000000000000:android:0000000000000000000000",
+                  "android_client_info": {
+                    "package_name": "com.aistudio.karirku.vrmxqp"
+                  }
+                },
+                "oauth_client": [
+                  {
+                    "client_id": "placeholder-ci-web-client-id",
+                    "client_type": 3
+                  }
+                ],
+                "api_key": [
+                  {
+                    "current_key": "placeholder-ci-api-key"
+                  }
+                ],
+                "services": {
+                  "appinvite_service": {
+                    "other_platform_oauth_client": [
+                      {
+                        "client_id": "placeholder-ci-web-client-id",
+                        "client_type": 3
+                      }
+                    ]
+                  }
+                }
+              }
+            ],
+            "configuration_version": "1"
+          }
+          EOF
+            echo "mode=placeholder" >> "$GITHUB_OUTPUT"
+            echo "::warning::app/google-services.json not found and no GOOGLE_SERVICES_JSON secret configured; using CI placeholder so APK compiles. Add secret GOOGLE_SERVICES_JSON for live Firebase Auth/Firestore."
+          fi
+
       - name: Build Release & Debug APKs
         run: |
           gradle :app:assembleRelease :app:assembleDebug --no-daemon --stacktrace
@@ -200,8 +266,11 @@ jobs:
             ### Info Build
             - **Commit:** `${{ github.sha }}`
             - **Run Number:** `#${{ github.run_number }}`
+            - **Google Services Config:** `${{ steps.google_services.outputs.mode }}`
             - **Release SHA-1:** `${{ steps.keystore.outputs.release_sha1 }}`
 
+            > **Catatan Firebase (`google-services.json`):** Jika status `Google Services Config` adalah `placeholder`, tambahkan isi file `app/google-services.json` milik proyek Firebase kamu ke **GitHub Repository Settings → Secrets and variables → Actions → New repository secret** dengan nama `GOOGLE_SERVICES_JSON` (atau versi Base64 pada `GOOGLE_SERVICES_JSON_BASE64`) agar Login Google & Firestore aktif penuh pada APK hasil GitHub Actions.
+            >
             > **Catatan Google Sign-In pada Release APK:** Jika menggunakan Release APK dengan keystore otomatis, tambahkan `Release SHA-1` di atas ke Firebase Console > Project Settings > Android App, atau simpan keystore permanen pada GitHub Repository Secrets (`KEYSTORE_BASE64`, `STORE_PASSWORD`, `KEY_PASSWORD`).
           files: |
             ${{ steps.package.outputs.release_apk }}
@@ -214,6 +283,7 @@ jobs:
             echo ""
             echo "- **Release Tag:** \`${{ steps.package.outputs.release_tag }}\`"
             echo "- **Keystore Mode:** \`${{ steps.keystore.outputs.mode }}\`"
+            echo "- **Google Services Mode:** \`${{ steps.google_services.outputs.mode }}\`"
             echo "- **Release SHA-1:** \`${{ steps.keystore.outputs.release_sha1 }}\`"
             echo "- **Artifacts:** Tersedia di bagian **Artifacts** di bawah dan di halaman **GitHub Releases**."
           } >> "$GITHUB_STEP_SUMMARY"
