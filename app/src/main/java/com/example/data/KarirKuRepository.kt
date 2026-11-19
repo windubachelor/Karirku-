@@ -113,6 +113,45 @@ class KarirKuRepository(
         )
     }
 
+    fun observePublicJobListings(userId: String): Flow<List<PublicJobListing>> = flow {
+        val path = "publicJobListings"
+        emitAll(
+            db.collection("publicJobListings")
+                .snapshots()
+                .map { snapshot ->
+                    snapshot.toObjects(
+                        PublicJobListing::class.java,
+                        DocumentSnapshot.ServerTimestampBehavior.ESTIMATE
+                    ).sortedByDescending { it.createdAt?.seconds ?: it.updatedAt?.seconds ?: 0L }
+                }
+                .catch { error ->
+                    logStreamErrorIfActive(error, userId, OperationType.LIST, path)
+                    throw error
+                }
+        )
+    }
+
+    fun observeNotes(userId: String): Flow<List<CareerNote>> = flow {
+        val path = "users/$userId/notes"
+        emitAll(
+            db.collection("users").document(userId).collection("notes")
+                .snapshots()
+                .map { snapshot ->
+                    snapshot.toObjects(
+                        CareerNote::class.java,
+                        DocumentSnapshot.ServerTimestampBehavior.ESTIMATE
+                    ).sortedWith(
+                        compareByDescending<CareerNote> { it.pinned }
+                            .thenByDescending { it.updatedAt?.seconds ?: it.createdAt?.seconds ?: 0L }
+                    )
+                }
+                .catch { error ->
+                    logStreamErrorIfActive(error, userId, OperationType.LIST, path)
+                    throw error
+                }
+        )
+    }
+
     private fun logStreamErrorIfActive(
         error: Throwable,
         userId: String,
@@ -691,6 +730,195 @@ class KarirKuRepository(
             require(documentId.isNotBlank()) { "ID dokumen tidak valid." }
             db.collection("users").document(uid).collection("documents")
                 .document(documentId)
+                .delete()
+                .await()
+            Result.success(Unit)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            handleFirestoreError(e, OperationType.DELETE, docPath)
+            Result.failure(e)
+        }
+    }
+
+    // --- PUBLIC COMMUNITY JOB LISTING OPERATIONS ---
+
+    suspend fun savePublicJobListing(
+        userId: String,
+        authorName: String,
+        existingId: String?,
+        title: String,
+        companyName: String,
+        category: JobListingCategory,
+        location: String,
+        subtitle: String,
+        externalUrl: String
+    ): Result<String> {
+        var docPath = "publicJobListings"
+        return try {
+            val uid = requireVerifiedUid(userId)
+            val cleanTitle = title.trim().take(120)
+            val cleanCompany = companyName.trim().take(120)
+            val cleanUrl = externalUrl.trim().take(600)
+            val cleanAuthor = authorName.trim().ifBlank { "Pengguna KarirKu" }.take(100)
+            require(cleanTitle.isNotEmpty()) { "Judul posisi lowongan wajib diisi." }
+            require(cleanCompany.isNotEmpty()) { "Nama perusahaan wajib diisi." }
+            require(cleanUrl.isNotEmpty()) { "Tautan lowongan wajib diisi." }
+
+            val colRef = db.collection("publicJobListings")
+            if (existingId.isNullOrBlank()) {
+                val docRef = colRef.document()
+                docPath = docRef.path
+                docRef.set(
+                    mapOf(
+                        "authorUid" to uid,
+                        "authorName" to cleanAuthor,
+                        "title" to cleanTitle,
+                        "companyName" to cleanCompany,
+                        "category" to category.name,
+                        "location" to location.trim().take(120),
+                        "subtitle" to subtitle.trim().take(200),
+                        "externalUrl" to cleanUrl,
+                        "createdAt" to FieldValue.serverTimestamp(),
+                        "updatedAt" to FieldValue.serverTimestamp()
+                    )
+                ).await()
+                Result.success(docRef.id)
+            } else {
+                val docRef = colRef.document(existingId)
+                docPath = docRef.path
+                docRef.update(
+                    mapOf(
+                        "authorName" to cleanAuthor,
+                        "title" to cleanTitle,
+                        "companyName" to cleanCompany,
+                        "category" to category.name,
+                        "location" to location.trim().take(120),
+                        "subtitle" to subtitle.trim().take(200),
+                        "externalUrl" to cleanUrl,
+                        "updatedAt" to FieldValue.serverTimestamp()
+                    )
+                ).await()
+                Result.success(existingId)
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            handleFirestoreError(
+                e,
+                if (existingId.isNullOrBlank()) OperationType.CREATE else OperationType.UPDATE,
+                docPath
+            )
+            Result.failure(e)
+        }
+    }
+
+    suspend fun deletePublicJobListing(userId: String, listingId: String): Result<Unit> {
+        val docPath = "publicJobListings/$listingId"
+        return try {
+            requireVerifiedUid(userId)
+            require(listingId.isNotBlank()) { "ID lowongan tidak valid." }
+            db.collection("publicJobListings")
+                .document(listingId)
+                .delete()
+                .await()
+            Result.success(Unit)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            handleFirestoreError(e, OperationType.DELETE, docPath)
+            Result.failure(e)
+        }
+    }
+
+    // --- PERSONAL CAREER NOTES OPERATIONS ---
+
+    suspend fun saveNote(
+        userId: String,
+        existingId: String?,
+        title: String,
+        content: String,
+        tag: String,
+        pinned: Boolean
+    ): Result<String> {
+        var docPath = "users/$userId/notes"
+        return try {
+            val uid = requireVerifiedUid(userId)
+            val cleanTitle = title.trim().take(120)
+            require(cleanTitle.isNotEmpty()) { "Judul catatan wajib diisi." }
+            val cleanTag = tag.trim().ifBlank { "Umum" }.take(40)
+            val colRef = db.collection("users").document(uid).collection("notes")
+
+            if (existingId.isNullOrBlank()) {
+                val docRef = colRef.document()
+                docPath = docRef.path
+                docRef.set(
+                    mapOf(
+                        "userId" to uid,
+                        "title" to cleanTitle,
+                        "content" to content.trim().take(5000),
+                        "tag" to cleanTag,
+                        "pinned" to pinned,
+                        "createdAt" to FieldValue.serverTimestamp(),
+                        "updatedAt" to FieldValue.serverTimestamp()
+                    )
+                ).await()
+                Result.success(docRef.id)
+            } else {
+                val docRef = colRef.document(existingId)
+                docPath = docRef.path
+                docRef.update(
+                    mapOf(
+                        "title" to cleanTitle,
+                        "content" to content.trim().take(5000),
+                        "tag" to cleanTag,
+                        "pinned" to pinned,
+                        "updatedAt" to FieldValue.serverTimestamp()
+                    )
+                ).await()
+                Result.success(existingId)
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            handleFirestoreError(
+                e,
+                if (existingId.isNullOrBlank()) OperationType.CREATE else OperationType.UPDATE,
+                docPath
+            )
+            Result.failure(e)
+        }
+    }
+
+    suspend fun toggleNotePinned(userId: String, noteId: String, pinned: Boolean): Result<Unit> {
+        val docPath = "users/$userId/notes/$noteId"
+        return try {
+            val uid = requireVerifiedUid(userId)
+            require(noteId.isNotBlank()) { "ID catatan tidak valid." }
+            db.collection("users").document(uid).collection("notes")
+                .document(noteId)
+                .update(
+                    mapOf(
+                        "pinned" to pinned,
+                        "updatedAt" to FieldValue.serverTimestamp()
+                    )
+                ).await()
+            Result.success(Unit)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            handleFirestoreError(e, OperationType.UPDATE, docPath)
+            Result.failure(e)
+        }
+    }
+
+    suspend fun deleteNote(userId: String, noteId: String): Result<Unit> {
+        val docPath = "users/$userId/notes/$noteId"
+        return try {
+            val uid = requireVerifiedUid(userId)
+            require(noteId.isNotBlank()) { "ID catatan tidak valid." }
+            db.collection("users").document(uid).collection("notes")
+                .document(noteId)
                 .delete()
                 .await()
             Result.success(Unit)

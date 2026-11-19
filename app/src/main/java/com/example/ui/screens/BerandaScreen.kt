@@ -30,9 +30,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.outlined.SwapVert
 import androidx.compose.material.icons.rounded.Add
-import androidx.compose.material.icons.rounded.AddTask
-import androidx.compose.material.icons.rounded.CalendarMonth
-import androidx.compose.material.icons.rounded.FolderSpecial
 import androidx.compose.material.icons.rounded.WorkspacePremium
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -49,7 +46,6 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -60,6 +56,7 @@ import com.example.data.ApplicationStatus
 import com.example.data.JobApplication
 import com.example.ui.components.AtmosphericDarkCard
 import com.example.ui.components.ExpressiveEmptyStateCard
+import com.example.ui.components.GojekCareerMenuCard
 import com.example.ui.components.JobApplicationCard
 import com.example.ui.components.PulsingStatusDot
 import com.example.ui.components.TactileRaisedButton
@@ -81,6 +78,7 @@ import java.util.Locale
 @Composable
 fun BerandaScreen(
     state: KarirKuDashboardState,
+    publicJobCount: Int,
     selectedFilter: ApplicationStatus?,
     sortOrder: SortOrder,
     onSelectFilter: (ApplicationStatus?) -> Unit,
@@ -89,7 +87,9 @@ fun BerandaScreen(
     onToggleStar: (JobApplication) -> Unit,
     onAddApplicationClick: () -> Unit,
     onOpenScheduleTab: () -> Unit,
-    onOpenProfileTab: () -> Unit = {},
+    onOpenInfoLowongan: () -> Unit,
+    onOpenCatatan: () -> Unit,
+    onSoonFeatureClick: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val colors = KarirKuThemeTokens.colors
@@ -299,53 +299,15 @@ fun BerandaScreen(
                 }
             }
 
-            // 1B. Gojek-style Super-App Raised Quick Action Dock
+            // 1B. Gojek/GoPay-inspired 4-Menu Tactile Card (Info Lowongan, Catatan, Interview Prepare, AI)
             item(key = "quick_actions_dock") {
-                TactileRaisedCard(
-                    modifier = Modifier.fillMaxWidth(),
-                    cornerRadius = 22.dp,
-                    lipDepth = 3.dp
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 12.dp, vertical = 14.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        QuickActionTile(
-                            label = "Catat Baru",
-                            icon = Icons.Rounded.AddTask,
-                            iconColor = colors.accentAmber,
-                            bgColor = colors.amberSoftBg,
-                            onClick = onAddApplicationClick,
-                            modifier = Modifier.weight(1f)
-                        )
-                        QuickActionTile(
-                            label = "Jadwal",
-                            icon = Icons.Rounded.CalendarMonth,
-                            iconColor = colors.accentBlue,
-                            bgColor = colors.blueSoftBg,
-                            onClick = onOpenScheduleTab,
-                            modifier = Modifier.weight(1f)
-                        )
-                        QuickActionTile(
-                            label = "Offer (${metrics.offerCount})",
-                            icon = Icons.Rounded.WorkspacePremium,
-                            iconColor = colors.accentEmerald,
-                            bgColor = colors.emeraldSoftBg,
-                            onClick = { onSelectFilter(ApplicationStatus.OFFER) },
-                            modifier = Modifier.weight(1f)
-                        )
-                        QuickActionTile(
-                            label = "Portofolio",
-                            icon = Icons.Rounded.FolderSpecial,
-                            iconColor = colors.textPrimary,
-                            bgColor = colors.recessedSurface,
-                            onClick = onOpenProfileTab,
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-                }
+                GojekCareerMenuCard(
+                    publicJobCount = publicJobCount,
+                    onOpenInfoLowongan = onOpenInfoLowongan,
+                    onOpenCatatan = onOpenCatatan,
+                    onInterviewPrepareClick = { onSoonFeatureClick("Interview Prepare") },
+                    onAiClick = { onSoonFeatureClick("Asisten AI Karier") }
+                )
             }
 
             // 2. Pipeline Seleksi Header (Non-colliding two-tier editorial layout)
@@ -894,68 +856,6 @@ fun BerandaScreen(
                 )
             }
         }
-    }
-}
-
-@Composable
-private fun QuickActionTile(
-    label: String,
-    icon: ImageVector,
-    iconColor: Color,
-    bgColor: Color,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val colors = KarirKuThemeTokens.colors
-    Column(
-        modifier = modifier
-            .clip(RoundedCornerShape(16.dp))
-            .tactileClickable(onClick = onClick)
-            .padding(vertical = 4.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(7.dp)
-    ) {
-        Box(
-            modifier = Modifier
-                .size(46.dp)
-                .modernColoredShadow(
-                    color = iconColor.copy(alpha = 0.22f),
-                    cornerRadius = 15.dp,
-                    blurRadius = 10.dp,
-                    offsetY = 4.dp
-                )
-                .clip(RoundedCornerShape(15.dp))
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(bgColor, bgColor.copy(alpha = 0.72f))
-                    )
-                )
-                .border(
-                    width = 1.dp,
-                    brush = Brush.verticalGradient(
-                        colors = listOf(Color.White.copy(alpha = if (colors.isDark) 0.16f else 0.9f), iconColor.copy(alpha = 0.22f))
-                    ),
-                    shape = RoundedCornerShape(15.dp)
-                ),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = label,
-                tint = iconColor,
-                modifier = Modifier.size(22.dp)
-            )
-        }
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelSmall.copy(
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 0.1.sp
-            ),
-            color = colors.textPrimary,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
     }
 }
 

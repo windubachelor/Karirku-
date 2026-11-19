@@ -87,6 +87,19 @@ enum class DocumentCategory(val label: String) {
     }
 }
 
+enum class JobListingCategory(val label: String) {
+    FULL_TIME("Full-time"),
+    REMOTE("Remote"),
+    MAGANG("Magang"),
+    FREELANCE("Freelance"),
+    LAINNYA("Lainnya");
+
+    companion object {
+        fun fromRaw(raw: String): JobListingCategory =
+            entries.firstOrNull { it.name == raw } ?: FULL_TIME
+    }
+}
+
 @Keep
 @IgnoreExtraProperties
 data class UserProfile(
@@ -236,6 +249,38 @@ data class CareerDocument(
     val categoryEnum: DocumentCategory
         get() = DocumentCategory.fromRaw(category)
 }
+
+@Keep
+@IgnoreExtraProperties
+data class PublicJobListing(
+    @DocumentId val id: String = "",
+    val authorUid: String = "",
+    val authorName: String = "",
+    val title: String = "",
+    val companyName: String = "",
+    val category: String = JobListingCategory.FULL_TIME.name,
+    val location: String = "",
+    val subtitle: String = "",
+    val externalUrl: String = "",
+    @ServerTimestamp val createdAt: Timestamp? = null,
+    @ServerTimestamp val updatedAt: Timestamp? = null
+) {
+    val categoryEnum: JobListingCategory
+        get() = JobListingCategory.fromRaw(category)
+}
+
+@Keep
+@IgnoreExtraProperties
+data class CareerNote(
+    @DocumentId val id: String = "",
+    val userId: String = "",
+    val title: String = "",
+    val content: String = "",
+    val tag: String = "Umum",
+    val pinned: Boolean = false,
+    @ServerTimestamp val createdAt: Timestamp? = null,
+    @ServerTimestamp val updatedAt: Timestamp? = null
+)
 
 // --- FORMATTING UTILITIES ---
 

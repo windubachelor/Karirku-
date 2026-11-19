@@ -6,12 +6,15 @@ import androidx.lifecycle.viewModelScope
 import com.example.data.ApplicationStatus
 import com.example.data.AvailabilityStatus
 import com.example.data.CareerDocument
+import com.example.data.CareerNote
 import com.example.data.ContractType
 import com.example.data.DocumentCategory
 import com.example.data.InterviewSchedule
 import com.example.data.JobApplication
+import com.example.data.JobListingCategory
 import com.example.data.KarirKuRepository
 import com.example.data.MeetingFormat
+import com.example.data.PublicJobListing
 import com.example.data.UserProfile
 import com.example.data.WorkMode
 import com.google.firebase.firestore.FirebaseFirestoreException
@@ -134,6 +137,15 @@ class KarirKuViewModel(
     private val documentsFlow: StateFlow<UiState<List<CareerDocument>>> =
         safeUiFlow(repository.observeDocuments(currentUserId), "Gagal memuat dokumen")
 
+    private val publicJobListingsUiFlow: StateFlow<UiState<List<PublicJobListing>>> =
+        safeUiFlow(repository.observePublicJobListings(currentUserId), "Gagal memuat info lowongan publik")
+
+    private val notesUiFlow: StateFlow<UiState<List<CareerNote>>> =
+        safeUiFlow(repository.observeNotes(currentUserId), "Gagal memuat catatan karier")
+
+    val publicJobListingsState: StateFlow<UiState<List<PublicJobListing>>> = publicJobListingsUiFlow
+    val notesState: StateFlow<UiState<List<CareerNote>>> = notesUiFlow
+
     val dashboardState: StateFlow<KarirKuDashboardState> = combine(
         profileFlow,
         applicationsFlow,
@@ -180,6 +192,10 @@ class KarirKuViewModel(
         val nextIndex = (values.indexOf(_sortOrder.value) + 1) % values.size
         _sortOrder.value = values[nextIndex]
         _snackbarEvents.tryEmit("Urutan: ${values[nextIndex].label}")
+    }
+
+    fun showMessage(message: String) {
+        _snackbarEvents.tryEmit(message)
     }
 
     // --- MUTATIONS ---
@@ -453,6 +469,109 @@ class KarirKuViewModel(
             ).onFailure { err ->
                 _snackbarEvents.tryEmit(err.localizedMessage ?: "Gagal mengubah pengaturan")
             }
+        }
+    }
+
+    // --- PUBLIC JOB LISTINGS MUTATIONS ---
+
+    fun savePublicJobListing(
+        existingId: String?,
+        title: String,
+        companyName: String,
+        category: JobListingCategory,
+        location: String,
+        subtitle: String,
+        externalUrl: String,
+        onSuccess: () -> Unit = {}
+    ) {
+        viewModelScope.launch {
+            _isSaving.value = true
+            val authorName = dashboardState.value.profile?.displayName
+                ?.takeIf { it.isNotBlank() }
+                ?: initialDisplayName
+            val result = repository.savePublicJobListing(
+                userId = currentUserId,
+                authorName = authorName,
+                existingId = existingId,
+                title = title,
+                companyName = companyName,
+                category = category,
+                location = location,
+                subtitle = subtitle,
+                externalUrl = externalUrl
+            )
+            _isSaving.value = false
+            result.onSuccess {
+                _snackbarEvents.tryEmit(
+                    if (existingId.isNullOrBlank()) "Info lowongan publik berhasil dibagikan!"
+                    else "Info lowongan diperbarui"
+                )
+                onSuccess()
+            }.onFailure { err ->
+                _snackbarEvents.tryEmit(err.localizedMessage ?: "Gagal membagikan lowongan")
+            }
+        }
+    }
+
+    fun deletePublicJobListing(listingId: String) {
+        viewModelScope.launch {
+            repository.deletePublicJobListing(currentUserId, listingId)
+                .onSuccess { _snackbarEvents.tryEmit("Info lowongan dihapus") }
+                .onFailure { err ->
+                    _snackbarEvents.tryEmit(err.localizedMessage ?: "Gagal menghapus lowongan")
+                }
+        }
+    }
+
+    // --- PERSONAL CAREER NOTES MUTATIONS ---
+
+    fun saveNote(
+        existingId: String?,
+        title: String,
+        content: String,
+        tag: String,
+        pinned: Boolean,
+        onSuccess: () -> Unit = {}
+    ) {
+        viewModelScope.launch {
+            _isSaving.value = true
+            val result = repository.saveNote(
+                userId = currentUserId,
+                existingId = existingId,
+                title = title,
+                content = content,
+                tag = tag,
+                pinned = pinned
+            )
+            _isSaving.value = false
+            result.onSuccess {
+                _snackbarEvents.tryEmit(
+                    if (existingId.isNullOrBlank()) "Catatan berhasil disimpan"
+                    else "Catatan diperbarui"
+                )
+                onSuccess()
+            }.onFailure { err ->
+                _snackbarEvents.tryEmit(err.localizedMessage ?: "Gagal menyimpan catatan")
+            }
+        }
+    }
+
+    fun toggleNotePinned(note: CareerNote) {
+        viewModelScope.launch {
+            repository.toggleNotePinned(currentUserId, note.id, !note.pinned)
+                .onFailure { err ->
+                    _snackbarEvents.tryEmit(err.localizedMessage ?: "Gagal menyematkan catatan")
+                }
+        }
+    }
+
+    fun deleteNote(noteId: String) {
+        viewModelScope.launch {
+            repository.deleteNote(currentUserId, noteId)
+                .onSuccess { _snackbarEvents.tryEmit("Catatan dihapus") }
+                .onFailure { err ->
+                    _snackbarEvents.tryEmit(err.localizedMessage ?: "Gagal menghapus catatan")
+                }
         }
     }
 

@@ -103,6 +103,29 @@ service cloud.firestore {
              data.updatedAt is timestamp && data.updatedAt <= request.time;
     }
 
+    function isValidCareerNote(data, userId) {
+      return data.userId is string && data.userId == userId &&
+             data.title is string && data.title.size() >= 1 && data.title.size() <= 120 &&
+             data.content is string && data.content.size() <= 5000 &&
+             data.tag is string && data.tag.size() <= 40 &&
+             data.pinned is bool &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidPublicJobListing(data) {
+      return data.authorUid is string && data.authorUid.size() >= 1 && data.authorUid.size() <= 128 &&
+             data.authorName is string && data.authorName.size() >= 1 && data.authorName.size() <= 100 &&
+             data.title is string && data.title.size() >= 1 && data.title.size() <= 120 &&
+             data.companyName is string && data.companyName.size() >= 1 && data.companyName.size() <= 120 &&
+             data.category in ['FULL_TIME', 'REMOTE', 'MAGANG', 'FREELANCE', 'LAINNYA'] &&
+             data.location is string && data.location.size() <= 120 &&
+             data.subtitle is string && data.subtitle.size() <= 200 &&
+             data.externalUrl is string && data.externalUrl.size() >= 1 && data.externalUrl.size() <= 600 &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
     // --- USER PROFILE COLLECTION ---
     match /users/{userId} {
       allow get: if isOwner(userId) && isValidId(userId);
@@ -259,6 +282,74 @@ service cloud.firestore {
 
         allow delete: if isOwner(userId) && isValidId(documentId);
       }
+
+      // --- PERSONAL CAREER NOTES SUBCOLLECTION ---
+      match /notes/{noteId} {
+        allow get: if isOwner(userId) && isValidId(noteId);
+        allow list: if isOwner(userId);
+
+        allow create: if isOwner(userId) &&
+                         isValidId(noteId) &&
+                         incoming().keys().hasAll([
+                           'userId', 'title', 'content', 'tag', 'pinned',
+                           'createdAt', 'updatedAt'
+                         ]) &&
+                         incoming().keys().hasOnly([
+                           'userId', 'title', 'content', 'tag', 'pinned',
+                           'createdAt', 'updatedAt'
+                         ]) &&
+                         isValidCareerNote(incoming(), userId);
+
+        allow update: if isOwner(userId) &&
+                         isValidId(noteId) &&
+                         isValidCareerNote(incoming(), userId) &&
+                         incoming().userId == existing().userId &&
+                         incoming().createdAt == existing().createdAt &&
+                         (
+                           incoming().diff(existing()).affectedKeys().hasOnly(['pinned', 'updatedAt']) ||
+                           incoming().diff(existing()).affectedKeys().hasOnly([
+                             'title', 'content', 'tag', 'pinned', 'updatedAt'
+                           ])
+                         );
+
+        allow delete: if isOwner(userId) && isValidId(noteId);
+      }
+    }
+
+    // --- PUBLIC COMMUNITY JOB LISTINGS COLLECTION ---
+    match /publicJobListings/{listingId} {
+      allow get: if isSignedIn() && isValidId(listingId);
+      allow list: if isSignedIn();
+
+      allow create: if isSignedIn() &&
+                       isValidId(listingId) &&
+                       incoming().keys().hasAll([
+                         'authorUid', 'authorName', 'title', 'companyName',
+                         'category', 'location', 'subtitle', 'externalUrl',
+                         'createdAt', 'updatedAt'
+                       ]) &&
+                       incoming().keys().hasOnly([
+                         'authorUid', 'authorName', 'title', 'companyName',
+                         'category', 'location', 'subtitle', 'externalUrl',
+                         'createdAt', 'updatedAt'
+                       ]) &&
+                       incoming().authorUid == request.auth.uid &&
+                       isValidPublicJobListing(incoming());
+
+      allow update: if isSignedIn() &&
+                       isValidId(listingId) &&
+                       existing().authorUid == request.auth.uid &&
+                       incoming().authorUid == existing().authorUid &&
+                       incoming().createdAt == existing().createdAt &&
+                       isValidPublicJobListing(incoming()) &&
+                       incoming().diff(existing()).affectedKeys().hasOnly([
+                         'authorName', 'title', 'companyName', 'category',
+                         'location', 'subtitle', 'externalUrl', 'updatedAt'
+                       ]);
+
+      allow delete: if isSignedIn() &&
+                       isValidId(listingId) &&
+                       existing().authorUid == request.auth.uid;
     }
   }
 }

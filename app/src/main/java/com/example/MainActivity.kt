@@ -88,7 +88,9 @@ import com.example.ui.components.KarirKuTopBar
 import com.example.ui.components.modernColoredShadow
 import com.example.ui.components.tactileClickable
 import com.example.ui.screens.BerandaScreen
+import com.example.ui.screens.CatatanScreen
 import com.example.ui.screens.DossierFormScreen
+import com.example.ui.screens.InfoLowonganScreen
 import com.example.ui.screens.JadwalScreen
 import com.example.ui.screens.LamaranScreen
 import com.example.ui.screens.ProfilScreen
@@ -96,6 +98,7 @@ import com.example.ui.theme.KarirKuTheme
 import com.example.ui.theme.KarirKuThemeTokens
 import com.example.ui.theme.MonoEyebrowStyle
 import com.example.viewmodel.KarirKuViewModel
+import com.example.viewmodel.UiState
 import com.google.firebase.Firebase
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
@@ -123,6 +126,13 @@ private enum class KarirKuTab(
     LAMARAN("lamaran", "Lamaran", "DAFTAR LAMARAN", Icons.Filled.Work, Icons.Outlined.WorkOutline),
     JADWAL("jadwal", "Jadwal", "AGENDA INTERVIEW", Icons.Filled.CalendarMonth, Icons.Outlined.CalendarMonth),
     PROFIL("profil", "Profil", "PROFIL KARIER", Icons.Filled.Person, Icons.Outlined.Person)
+}
+
+private enum class SecondaryScreen {
+    NONE,
+    FORM,
+    INFO_LOWONGAN,
+    CATATAN
 }
 
 @Composable
@@ -170,26 +180,31 @@ private fun AuthenticatedKarirKuShell(user: FirebaseUser) {
     )
 
     val dashboardState by viewModel.dashboardState.collectAsStateWithLifecycle()
+    val publicJobListingsState by viewModel.publicJobListingsState.collectAsStateWithLifecycle()
+    val notesState by viewModel.notesState.collectAsStateWithLifecycle()
     val selectedStatusFilter by viewModel.selectedStatusFilter.collectAsStateWithLifecycle()
     val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
     val sortOrder by viewModel.sortOrder.collectAsStateWithLifecycle()
     val isSaving by viewModel.isSaving.collectAsStateWithLifecycle()
 
     val darkThemeEnabled = dashboardState.profile?.darkModeEnabled ?: false
+    val publicJobCount = (publicJobListingsState as? UiState.Success)?.data?.size ?: 0
 
     KarirKuTheme(darkTheme = darkThemeEnabled) {
         val colors = KarirKuThemeTokens.colors
         val snackbarHostState = remember { SnackbarHostState() }
 
         var activeTab by rememberSaveable { mutableStateOf(KarirKuTab.BERANDA) }
-        var isFormOpen by rememberSaveable { mutableStateOf(false) }
+        var secondaryScreen by rememberSaveable { mutableStateOf(SecondaryScreen.NONE) }
         var editingApplicationId by rememberSaveable { mutableStateOf<String?>(null) }
         var inspectedApplicationId by rememberSaveable { mutableStateOf<String?>(null) }
         var pendingDeleteAppId by rememberSaveable { mutableStateOf<String?>(null) }
         var preselectedAppForScheduleId by rememberSaveable { mutableStateOf<String?>(null) }
 
+        val isSecondaryOpen = secondaryScreen != SecondaryScreen.NONE
+
         // Return cleanly to Beranda when pressing Android Back on secondary tabs
-        BackHandler(enabled = !isFormOpen && activeTab != KarirKuTab.BERANDA) {
+        BackHandler(enabled = !isSecondaryOpen && activeTab != KarirKuTab.BERANDA) {
             activeTab = KarirKuTab.BERANDA
         }
 
@@ -226,7 +241,7 @@ private fun AuthenticatedKarirKuShell(user: FirebaseUser) {
                 contentWindowInsets = WindowInsets.safeDrawing,
                 snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
                 bottomBar = {
-                    if (!useNavigationRail && !isFormOpen) {
+                    if (!useNavigationRail && !isSecondaryOpen) {
                         KarirKuFloatingBottomDock(
                             activeTab = activeTab,
                             onSelectTab = { activeTab = it }
@@ -239,7 +254,7 @@ private fun AuthenticatedKarirKuShell(user: FirebaseUser) {
                         .fillMaxSize()
                         .padding(innerPadding)
                 ) {
-                    if (useNavigationRail && !isFormOpen) {
+                    if (useNavigationRail && !isSecondaryOpen) {
                         KarirKuNavigationRail(
                             activeTab = activeTab,
                             onSelectTab = { activeTab = it }
@@ -257,42 +272,67 @@ private fun AuthenticatedKarirKuShell(user: FirebaseUser) {
                                 .widthIn(max = 720.dp)
                                 .fillMaxSize()
                         ) {
-                            if (isFormOpen) {
-                                DossierFormScreen(
-                                    existingApplication = editingApplication,
-                                    savedProfileDocuments = dashboardState.documents,
-                                    expectedSalaryBaseline = dashboardState.profile?.expectedSalaryMin ?: 0L,
-                                    isSaving = isSaving,
-                                    onNavigateBack = {
-                                        isFormOpen = false
-                                        editingApplicationId = null
-                                    },
-                                    onSave = { exId, exCode, role, comp, loc, st, wm, ct, minS, maxS, appMs, tgtMs, notes, hr, atts, starred ->
-                                        viewModel.saveApplication(
-                                            existingId = exId,
-                                            existingDossierCode = exCode,
-                                            roleTitle = role,
-                                            companyName = comp,
-                                            location = loc,
-                                            status = st,
-                                            workMode = wm,
-                                            contractType = ct,
-                                            salaryMin = minS,
-                                            salaryMax = maxS,
-                                            appliedDateMillis = appMs,
-                                            targetResponseMillis = tgtMs,
-                                            notes = notes,
-                                            hrContact = hr,
-                                            attachments = atts,
-                                            starred = starred,
-                                            onSuccess = {
-                                                isFormOpen = false
-                                                editingApplicationId = null
-                                            }
-                                        )
-                                    }
-                                )
-                            } else {
+                            when (secondaryScreen) {
+                                SecondaryScreen.FORM -> {
+                                    DossierFormScreen(
+                                        existingApplication = editingApplication,
+                                        savedProfileDocuments = dashboardState.documents,
+                                        expectedSalaryBaseline = dashboardState.profile?.expectedSalaryMin ?: 0L,
+                                        isSaving = isSaving,
+                                        onNavigateBack = {
+                                            secondaryScreen = SecondaryScreen.NONE
+                                            editingApplicationId = null
+                                        },
+                                        onSave = { exId, exCode, role, comp, loc, st, wm, ct, minS, maxS, appMs, tgtMs, notes, hr, atts, starred ->
+                                            viewModel.saveApplication(
+                                                existingId = exId,
+                                                existingDossierCode = exCode,
+                                                roleTitle = role,
+                                                companyName = comp,
+                                                location = loc,
+                                                status = st,
+                                                workMode = wm,
+                                                contractType = ct,
+                                                salaryMin = minS,
+                                                salaryMax = maxS,
+                                                appliedDateMillis = appMs,
+                                                targetResponseMillis = tgtMs,
+                                                notes = notes,
+                                                hrContact = hr,
+                                                attachments = atts,
+                                                starred = starred,
+                                                onSuccess = {
+                                                    secondaryScreen = SecondaryScreen.NONE
+                                                    editingApplicationId = null
+                                                }
+                                            )
+                                        }
+                                    )
+                                }
+
+                                SecondaryScreen.INFO_LOWONGAN -> {
+                                    InfoLowonganScreen(
+                                        listingsState = publicJobListingsState,
+                                        currentUserId = user.uid,
+                                        isSaving = isSaving,
+                                        onNavigateBack = { secondaryScreen = SecondaryScreen.NONE },
+                                        onSaveListing = viewModel::savePublicJobListing,
+                                        onDeleteListing = viewModel::deletePublicJobListing
+                                    )
+                                }
+
+                                SecondaryScreen.CATATAN -> {
+                                    CatatanScreen(
+                                        notesState = notesState,
+                                        isSaving = isSaving,
+                                        onNavigateBack = { secondaryScreen = SecondaryScreen.NONE },
+                                        onSaveNote = viewModel::saveNote,
+                                        onTogglePin = viewModel::toggleNotePinned,
+                                        onDeleteNote = viewModel::deleteNote
+                                    )
+                                }
+
+                                SecondaryScreen.NONE -> {
                                 KarirKuTopBar(
                                     subtitleTag = activeTab.subtitleTag,
                                     userPhotoUrl = dashboardState.profile?.photoUrl ?: user.photoUrl?.toString(),
@@ -348,6 +388,7 @@ private fun AuthenticatedKarirKuShell(user: FirebaseUser) {
                                         when (tab) {
                                             KarirKuTab.BERANDA -> BerandaScreen(
                                                 state = dashboardState,
+                                                publicJobCount = publicJobCount,
                                                 selectedFilter = selectedStatusFilter,
                                                 sortOrder = sortOrder,
                                                 onSelectFilter = viewModel::setStatusFilter,
@@ -358,10 +399,18 @@ private fun AuthenticatedKarirKuShell(user: FirebaseUser) {
                                                 onToggleStar = viewModel::toggleApplicationStar,
                                                 onAddApplicationClick = {
                                                     editingApplicationId = null
-                                                    isFormOpen = true
+                                                    secondaryScreen = SecondaryScreen.FORM
                                                 },
                                                 onOpenScheduleTab = { activeTab = KarirKuTab.JADWAL },
-                                                onOpenProfileTab = { activeTab = KarirKuTab.PROFIL }
+                                                onOpenInfoLowongan = {
+                                                    secondaryScreen = SecondaryScreen.INFO_LOWONGAN
+                                                },
+                                                onOpenCatatan = {
+                                                    secondaryScreen = SecondaryScreen.CATATAN
+                                                },
+                                                onSoonFeatureClick = { featureName ->
+                                                    viewModel.showMessage("$featureName sedang disiapkan dan segera hadir!")
+                                                }
                                             )
 
                                             KarirKuTab.LAMARAN -> LamaranScreen(
@@ -376,7 +425,7 @@ private fun AuthenticatedKarirKuShell(user: FirebaseUser) {
                                                 onToggleStar = viewModel::toggleApplicationStar,
                                                 onAddNewDossierClick = {
                                                     editingApplicationId = null
-                                                    isFormOpen = true
+                                                    secondaryScreen = SecondaryScreen.FORM
                                                 }
                                             )
 
@@ -413,6 +462,7 @@ private fun AuthenticatedKarirKuShell(user: FirebaseUser) {
                                         }
                                     }
                                 }
+                                }
                             }
                         }
                     }
@@ -430,7 +480,7 @@ private fun AuthenticatedKarirKuShell(user: FirebaseUser) {
                 onEditClick = {
                     editingApplicationId = inspectedApplication.id
                     inspectedApplicationId = null
-                    isFormOpen = true
+                    secondaryScreen = SecondaryScreen.FORM
                 },
                 onCreateInterviewClick = {
                     preselectedAppForScheduleId = inspectedApplication.id
