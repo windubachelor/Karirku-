@@ -20,8 +20,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -35,21 +33,23 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.FormatListBulleted
 import androidx.compose.material.icons.outlined.CheckBox
 import androidx.compose.material.icons.outlined.DeleteOutline
-import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.FormatListNumbered
 import androidx.compose.material.icons.outlined.FormatQuote
 import androidx.compose.material.icons.outlined.Palette
 import androidx.compose.material.icons.outlined.PushPin
-import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.FormatBold
 import androidx.compose.material.icons.rounded.FormatItalic
 import androidx.compose.material.icons.rounded.FormatStrikethrough
 import androidx.compose.material.icons.rounded.FormatUnderlined
+import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.PushPin
+import androidx.compose.material.icons.rounded.TaskAlt
 import androidx.compose.material.icons.rounded.Title
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -69,18 +69,16 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.TextFieldValue
-import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.CareerNote
 import com.example.data.KarirKuFormatters
+import com.example.ui.components.InlineStyle
+import com.example.ui.components.ListPrefixKind
 import com.example.ui.components.NoteColorPalette
-import com.example.ui.components.RichTextLiveVisualTransformation
-import com.example.ui.components.applyRichLinePrefix
-import com.example.ui.components.applyRichWrapFormat
-import com.example.ui.components.buildCleanRichTextAnnotatedString
-import com.example.ui.components.modernColoredShadow
+import com.example.ui.components.WysiwygRichTextVisualTransformation
+import com.example.ui.components.deserializeRichNote
+import com.example.ui.components.serializeRichNote
 import com.example.ui.components.tactileClickable
 import com.example.ui.theme.KarirKuThemeTokens
 import com.example.ui.theme.MonoEyebrowStyle
@@ -89,10 +87,12 @@ import com.example.ui.theme.UnboundedFontFamily
 private val EDITOR_NOTE_TAGS = listOf("Umum", "Riset", "Interview", "Gaji", "Checklist")
 
 /**
- * Full-screen Google Keep-inspired Rich Text Note Composer & Editor.
- * Supports live rich-text styling (Heading, Bold, Italic, Underline, Strikethrough,
- * Interactive Checklists, Bullets, Numbered Lists, Blockquotes), pastel note colors,
- * label tags, pinning, Read/Preview mode, Save, and Delete.
+ * Full-screen Google Keep-inspired true WYSIWYG Rich Text Note Composer & Editor.
+ * - Zero visible raw markdown symbols (Bold, Italic, Underline, Strikethrough, Heading, Quote
+ *   are rendered cleanly via span-based VisualTransformation).
+ * - Clean uncluttered top bar with guaranteed unclipped Simpan CTA.
+ * - Edge-to-edge docked rich-text toolbar that sits flush above the IME keyboard without gaps
+ *   (parent Scaffold already applies WindowInsets.safeDrawing).
  */
 @Composable
 fun CatatanEditorScreen(
@@ -115,8 +115,8 @@ fun CatatanEditorScreen(
 
     val colors = KarirKuThemeTokens.colors
     var title by remember(existingNote?.id) { mutableStateOf(existingNote?.title ?: "") }
-    var contentValue by remember(existingNote?.id) {
-        mutableStateOf(TextFieldValue(existingNote?.content ?: ""))
+    var richState by remember(existingNote?.id) {
+        mutableStateOf(deserializeRichNote(existingNote?.content ?: ""))
     }
     var selectedTag by remember(existingNote?.id) {
         mutableStateOf(existingNote?.tag?.ifBlank { "Umum" } ?: "Umum")
@@ -126,14 +126,22 @@ fun CatatanEditorScreen(
     }
     var pinned by remember(existingNote?.id) { mutableStateOf(existingNote?.pinned ?: false) }
     var showPaletteStrip by remember { mutableStateOf(false) }
-    var isPreviewMode by remember { mutableStateOf(false) }
+    var showMoreMenu by remember { mutableStateOf(false) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
 
     val surfaceBg = selectedPalette.backgroundColor(colors.isDark)
     val surfaceBorder = selectedPalette.borderColor(colors.isDark)
 
-    val richVisualTransformation = remember(colors) {
-        RichTextLiveVisualTransformation(
+    val richVisualTransformation = remember(
+        richState.spans,
+        richState.headingLines,
+        richState.quoteLines,
+        colors
+    ) {
+        WysiwygRichTextVisualTransformation(
+            spans = richState.spans,
+            headingLines = richState.headingLines,
+            quoteLines = richState.quoteLines,
             accentColor = colors.accentAmber,
             emeraldColor = colors.accentEmerald,
             mutedColor = colors.textMuted,
@@ -141,25 +149,31 @@ fun CatatanEditorScreen(
         )
     }
 
-    val wordCount = remember(contentValue.text) {
-        contentValue.text.trim().split(Regex("\\s+")).count { it.isNotBlank() }
+    val wordCount = remember(richState.plainText) {
+        richState.plainText.trim().split(Regex("\\s+")).count { it.isNotBlank() }
     }
 
-    val canSave = (title.isNotBlank() || contentValue.text.isNotBlank()) && !isSaving
+    val canSave = (title.isNotBlank() || richState.plainText.isNotBlank()) && !isSaving
+    val currentListKind = richState.currentLineListKind
+    val isOnChecklistLine = currentListKind == ListPrefixKind.CHECK_UNCHECKED ||
+        currentListKind == ListPrefixKind.CHECK_CHECKED
 
     fun performSave() {
         val effectiveTitle = title.trim().ifBlank {
-            contentValue.text.lineSequence().firstOrNull { it.isNotBlank() }
-                ?.replace(Regex("""^[#>\-\[\]xX\s*•]+"""), "")
+            richState.plainText.lineSequence().firstOrNull { it.isNotBlank() }
+                ?.removePrefix("• ")
+                ?.removePrefix("☐ ")
+                ?.removePrefix("☑ ")
                 ?.trim()
                 ?.take(60)
                 ?.ifBlank { "Catatan Tanpa Judul" }
                 ?: "Catatan Tanpa Judul"
         }
+        val serializedContent = serializeRichNote(richState).take(9950)
         onSave(
             existingNote?.id,
             effectiveTitle,
-            contentValue.text,
+            serializedContent,
             selectedTag,
             selectedPalette.key,
             pinned,
@@ -167,27 +181,27 @@ fun CatatanEditorScreen(
         )
     }
 
+    // Note: Parent Scaffold already applies WindowInsets.safeDrawing (status bar + nav bar + IME).
+    // Do NOT add .imePadding() or .navigationBarsPadding() here, otherwise the keyboard inset is doubled!
     Column(
         modifier = modifier
             .fillMaxSize()
             .background(surfaceBg)
-            .imePadding()
-            .navigationBarsPadding()
             .testTag("catatan_editor_screen")
     ) {
-        // 1. Top Editorial Action Bar (Back, Pin, Preview, Palette, Delete, Simpan)
+        // 1. Clean, Roomy Top Bar (Back + Pin + More Menu + Unclipped Simpan Pill)
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
+                .padding(horizontal = 16.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Box(
                 modifier = Modifier
                     .size(42.dp)
                     .clip(CircleShape)
-                    .background(colors.cardSurface.copy(alpha = 0.9f))
+                    .background(colors.cardSurface.copy(alpha = 0.92f))
                     .border(1.dp, surfaceBorder, CircleShape)
                     .tactileClickable(onClick = onNavigateBack)
                     .testTag("note_editor_back"),
@@ -203,16 +217,6 @@ fun CatatanEditorScreen(
 
             Spacer(modifier = Modifier.weight(1f))
 
-            // Toggle Preview / Edit Mode
-            EditorTopIconButton(
-                icon = if (isPreviewMode) Icons.Outlined.Edit else Icons.Outlined.Visibility,
-                contentDescription = if (isPreviewMode) "Mode Edit" else "Pratinjau Rich Text",
-                active = isPreviewMode,
-                borderColor = surfaceBorder,
-                onClick = { isPreviewMode = !isPreviewMode },
-                modifier = Modifier.testTag("note_editor_preview_toggle")
-            )
-
             // Pin Toggle
             EditorTopIconButton(
                 icon = if (pinned) Icons.Rounded.PushPin else Icons.Outlined.PushPin,
@@ -223,38 +227,66 @@ fun CatatanEditorScreen(
                 modifier = Modifier.testTag("note_editor_pin")
             )
 
-            // Color Palette Toggle
-            EditorTopIconButton(
-                icon = Icons.Outlined.Palette,
-                contentDescription = "Pilih warna catatan",
-                active = showPaletteStrip,
-                borderColor = surfaceBorder,
-                onClick = { showPaletteStrip = !showPaletteStrip },
-                modifier = Modifier.testTag("note_editor_palette")
-            )
+            // More Actions Menu (Warna Kartu, Hapus Catatan)
+            Box {
+                EditorTopIconButton(
+                    icon = Icons.Rounded.MoreVert,
+                    contentDescription = "Menu catatan lainnya",
+                    active = showMoreMenu,
+                    borderColor = surfaceBorder,
+                    onClick = { showMoreMenu = true },
+                    modifier = Modifier.testTag("note_editor_more")
+                )
 
-            // Delete Button (when editing existing note)
-            if (existingNote != null) {
-                Box(
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(CircleShape)
-                        .background(colors.crimsonSoftBg.copy(alpha = 0.85f))
-                        .border(1.dp, colors.crimsonBorder, CircleShape)
-                        .tactileClickable { showDeleteConfirm = true }
-                        .testTag("note_editor_delete"),
-                    contentAlignment = Alignment.Center
+                DropdownMenu(
+                    expanded = showMoreMenu,
+                    onDismissRequest = { showMoreMenu = false },
+                    containerColor = colors.cardSurface,
+                    shape = RoundedCornerShape(16.dp)
                 ) {
-                    Icon(
-                        imageVector = Icons.Outlined.DeleteOutline,
-                        contentDescription = "Hapus catatan",
-                        tint = colors.accentCrimson,
-                        modifier = Modifier.size(19.dp)
+                    DropdownMenuItem(
+                        text = { Text("Warna Catatan", color = colors.textPrimary) },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Outlined.Palette,
+                                contentDescription = null,
+                                tint = colors.accentAmber,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        },
+                        onClick = {
+                            showMoreMenu = false
+                            showPaletteStrip = !showPaletteStrip
+                        }
                     )
+                    if (existingNote != null) {
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    "Hapus Catatan",
+                                    color = colors.accentCrimson,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Outlined.DeleteOutline,
+                                    contentDescription = null,
+                                    tint = colors.accentCrimson,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            },
+                            onClick = {
+                                showMoreMenu = false
+                                showDeleteConfirm = true
+                            },
+                            modifier = Modifier.testTag("note_editor_delete")
+                        )
+                    }
                 }
             }
 
-            // Prominent Tactile Simpan Pill
+            // Prominent Unclipped Simpan Pill
             Surface(
                 modifier = Modifier
                     .clip(RoundedCornerShape(14.dp))
@@ -268,9 +300,9 @@ fun CatatanEditorScreen(
                 )
             ) {
                 Row(
-                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                    modifier = Modifier.padding(horizontal = 15.dp, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(5.dp)
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     if (isSaving) {
                         CircularProgressIndicator(
@@ -290,7 +322,7 @@ fun CatatanEditorScreen(
                         text = "Simpan",
                         style = MaterialTheme.typography.labelLarge.copy(
                             fontWeight = FontWeight.Bold,
-                            fontSize = 12.5.sp
+                            fontSize = 13.sp
                         ),
                         color = if (canSave) colors.heroOnDark else colors.textMuted,
                         maxLines = 1,
@@ -300,55 +332,12 @@ fun CatatanEditorScreen(
             }
         }
 
-        // Optional Keep-Style Pastel Color Palette Strip
-        AnimatedVisibility(
-            visible = showPaletteStrip,
-            enter = fadeIn() + expandVertically(),
-            exit = fadeOut() + shrinkVertically()
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 18.dp, vertical = 6.dp)
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                NoteColorPalette.entries.forEach { palette ->
-                    val isSelected = selectedPalette == palette
-                    Box(
-                        modifier = Modifier
-                            .size(34.dp)
-                            .clip(CircleShape)
-                            .background(palette.swatchColor)
-                            .border(
-                                width = if (isSelected) 2.5.dp else 1.dp,
-                                color = if (isSelected) colors.accentAmber else colors.borderSubtle,
-                                shape = CircleShape
-                            )
-                            .clickable { selectedPalette = palette }
-                            .testTag("note_color_${palette.key}"),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        if (isSelected) {
-                            Icon(
-                                imageVector = Icons.Rounded.Check,
-                                contentDescription = palette.label,
-                                tint = Color(0xFF1A1B1E),
-                                modifier = Modifier.size(16.dp)
-                            )
-                        }
-                    }
-                }
-            }
-        }
-
-        // 2. Tag Selector + Metadata Strip
+        // 2. Compact Tag Selector Pills
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .horizontalScroll(rememberScrollState())
-                .padding(horizontal = 18.dp, vertical = 4.dp),
+                .padding(horizontal = 16.dp, vertical = 2.dp),
             horizontalArrangement = Arrangement.spacedBy(7.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -359,7 +348,7 @@ fun CatatanEditorScreen(
                         .clip(RoundedCornerShape(999.dp))
                         .tactileClickable { selectedTag = tag },
                     shape = RoundedCornerShape(999.dp),
-                    color = if (selected) colors.heroDarkSurface else colors.cardSurface.copy(alpha = 0.75f),
+                    color = if (selected) colors.heroDarkSurface else colors.cardSurface.copy(alpha = 0.8f),
                     border = BorderStroke(
                         1.dp,
                         if (selected) colors.heroDarkSurface else surfaceBorder
@@ -372,20 +361,22 @@ fun CatatanEditorScreen(
                             fontSize = 11.sp
                         ),
                         color = if (selected) colors.heroOnDark else colors.textSecondary,
-                        modifier = Modifier.padding(horizontal = 11.dp, vertical = 6.dp)
+                        maxLines = 1,
+                        softWrap = false,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
                     )
                 }
             }
         }
 
-        // 3. Scrollable Writing / Reading Canvas
+        // 3. Scrollable Writing Canvas (fills exact remaining height above the docked toolbar)
         Column(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth()
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             // Subtle Timestamp + Word Counter
             Row(
@@ -403,7 +394,7 @@ fun CatatanEditorScreen(
                     color = colors.textMuted
                 )
                 Text(
-                    text = "$wordCount kata • ${if (isPreviewMode) "Pratinjau" else "Rich Text"}",
+                    text = "$wordCount kata",
                     style = MonoEyebrowStyle.copy(fontSize = 9.sp),
                     color = colors.accentAmber
                 )
@@ -413,11 +404,11 @@ fun CatatanEditorScreen(
             BasicTextField(
                 value = title,
                 onValueChange = { title = it.take(120) },
-                enabled = !isPreviewMode,
                 textStyle = MaterialTheme.typography.headlineSmall.copy(
                     fontFamily = UnboundedFontFamily,
                     fontWeight = FontWeight.Bold,
-                    fontSize = 20.sp,
+                    fontSize = 19.sp,
+                    lineHeight = 25.sp,
                     color = colors.textPrimary
                 ),
                 cursorBrush = SolidColor(colors.accentAmber),
@@ -429,7 +420,7 @@ fun CatatanEditorScreen(
                                 style = MaterialTheme.typography.headlineSmall.copy(
                                     fontFamily = UnboundedFontFamily,
                                     fontWeight = FontWeight.Bold,
-                                    fontSize = 20.sp
+                                    fontSize = 19.sp
                                 ),
                                 color = colors.textMuted.copy(alpha = 0.55f)
                             )
@@ -442,151 +433,241 @@ fun CatatanEditorScreen(
                     .testTag("note_editor_title")
             )
 
-            HorizontalDivider(color = surfaceBorder.copy(alpha = 0.65f))
+            HorizontalDivider(color = surfaceBorder.copy(alpha = 0.7f))
 
-            if (isPreviewMode) {
-                // Interactive Clean Rich-Text Reader (tapping checklists toggles [ ] <-> [x] live!)
-                InteractiveRichTextReader(
-                    rawContent = contentValue.text,
-                    onToggleChecklistLine = { lineIdx ->
-                        val lines = contentValue.text.split("\n").toMutableList()
-                        if (lineIdx in lines.indices) {
-                            val line = lines[lineIdx]
-                            lines[lineIdx] = when {
-                                line.startsWith("[ ] ") -> "[x] " + line.drop(4)
-                                line.startsWith("[x] ") || line.startsWith("[X] ") -> "[ ] " + line.drop(4)
-                                else -> line
-                            }
-                            contentValue = contentValue.copy(text = lines.joinToString("\n"))
-                        }
-                    }
-                )
-            } else {
-                // Live Rich-Text Editor Field
-                BasicTextField(
-                    value = contentValue,
-                    onValueChange = { if (it.text.length <= 10000) contentValue = it },
-                    textStyle = MaterialTheme.typography.bodyLarge.copy(
-                        color = colors.textPrimary,
-                        lineHeight = 24.sp,
-                        fontSize = 15.sp
-                    ),
-                    cursorBrush = SolidColor(colors.accentAmber),
-                    visualTransformation = richVisualTransformation,
-                    decorationBox = { inner ->
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .heightIn(min = 260.dp)
-                        ) {
-                            if (contentValue.text.isEmpty()) {
-                                Text(
-                                    text = "Mulai tulis catatan riset perusahaan, poin interview, checklist persiapan, atau negosiasi gaji...\n\nGunakan bilah format di bawah untuk Tebal, Miring, Judul, Checklist, atau Daftar.",
-                                    style = MaterialTheme.typography.bodyMedium.copy(lineHeight = 22.sp),
-                                    color = colors.textMuted.copy(alpha = 0.6f)
-                                )
-                            }
-                            inner()
-                        }
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag("note_editor_body")
-                )
-            }
-
-            Spacer(modifier = Modifier.height(24.dp))
-        }
-
-        // 4. Modern Floating Rich Text Formatting Toolbar (Docked above IME Keyboard)
-        if (!isPreviewMode) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 14.dp, vertical = 10.dp)
-            ) {
-                Surface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .modernColoredShadow(
-                            color = if (colors.isDark) Color.Black.copy(alpha = 0.5f) else Color(0xFF2B2118).copy(alpha = 0.12f),
-                            cornerRadius = 18.dp,
-                            blurRadius = 16.dp,
-                            offsetY = 6.dp
-                        ),
-                    shape = RoundedCornerShape(18.dp),
-                    color = colors.cardSurface,
-                    border = BorderStroke(1.dp, surfaceBorder)
-                ) {
-                    Row(
+            // True WYSIWYG Rich Text Body Field (zero raw markdown characters!)
+            BasicTextField(
+                value = richState.fieldValue,
+                onValueChange = { richState = richState.onFieldValueChange(it) },
+                textStyle = MaterialTheme.typography.bodyLarge.copy(
+                    color = colors.textPrimary,
+                    lineHeight = 25.sp,
+                    fontSize = 15.5.sp
+                ),
+                cursorBrush = SolidColor(colors.accentAmber),
+                visualTransformation = richVisualTransformation,
+                decorationBox = { inner ->
+                    Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .horizontalScroll(rememberScrollState())
-                            .padding(horizontal = 8.dp, vertical = 6.dp),
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                            .heightIn(min = 240.dp)
                     ) {
-                        FormatToolbarButton(
-                            icon = Icons.Rounded.Title,
-                            contentDescription = "Judul (Heading)",
-                            onClick = { contentValue = applyRichLinePrefix(contentValue, "# ") },
-                            testTag = "fmt_heading"
+                        if (richState.plainText.isEmpty()) {
+                            Text(
+                                text = "Mulai tulis catatan riset perusahaan, poin interview, checklist persiapan, atau negosiasi gaji...",
+                                style = MaterialTheme.typography.bodyMedium.copy(lineHeight = 23.sp),
+                                color = colors.textMuted.copy(alpha = 0.6f)
+                            )
+                        }
+                        inner()
+                    }
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("note_editor_body")
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+        }
+
+        // 4. Contextual Checklist Toggle Pill (appears smoothly whenever cursor is on a checklist line)
+        AnimatedVisibility(
+            visible = isOnChecklistLine,
+            enter = fadeIn() + expandVertically(),
+            exit = fadeOut() + shrinkVertically()
+        ) {
+            val isChecked = currentListKind == ListPrefixKind.CHECK_CHECKED
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(colors.cardSurface.copy(alpha = 0.96f))
+                    .padding(horizontal = 14.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = if (isChecked) "Item checklist selesai" else "Item checklist aktif",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = colors.textMuted
+                )
+                Surface(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(999.dp))
+                        .tactileClickable { richState = richState.toggleCurrentChecklistChecked() }
+                        .testTag("fmt_checklist_complete_toggle"),
+                    shape = RoundedCornerShape(999.dp),
+                    color = if (isChecked) colors.recessedSurface else colors.emeraldSoftBg,
+                    border = BorderStroke(
+                        1.dp,
+                        if (isChecked) colors.borderSubtle else colors.emeraldBorder
+                    )
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(5.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.TaskAlt,
+                            contentDescription = null,
+                            tint = if (isChecked) colors.textSecondary else colors.accentEmerald,
+                            modifier = Modifier.size(14.dp)
                         )
-                        FormatToolbarButton(
-                            icon = Icons.Rounded.FormatBold,
-                            contentDescription = "Tebal (Bold)",
-                            onClick = { contentValue = applyRichWrapFormat(contentValue, "**", "teks tebal") },
-                            testTag = "fmt_bold"
-                        )
-                        FormatToolbarButton(
-                            icon = Icons.Rounded.FormatItalic,
-                            contentDescription = "Miring (Italic)",
-                            onClick = { contentValue = applyRichWrapFormat(contentValue, "*", "teks miring") },
-                            testTag = "fmt_italic"
-                        )
-                        FormatToolbarButton(
-                            icon = Icons.Rounded.FormatUnderlined,
-                            contentDescription = "Garis bawah (Underline)",
-                            onClick = { contentValue = applyRichWrapFormat(contentValue, "__", "garis bawah") },
-                            testTag = "fmt_underline"
-                        )
-                        FormatToolbarButton(
-                            icon = Icons.Rounded.FormatStrikethrough,
-                            contentDescription = "Coret (Strikethrough)",
-                            onClick = { contentValue = applyRichWrapFormat(contentValue, "~~", "teks coret") },
-                            testTag = "fmt_strike"
-                        )
-                        Box(
-                            modifier = Modifier
-                                .width(1.dp)
-                                .height(22.dp)
-                                .background(colors.borderSubtle)
-                        )
-                        FormatToolbarButton(
-                            icon = Icons.Outlined.CheckBox,
-                            contentDescription = "Checklist tugas",
-                            onClick = { contentValue = applyRichLinePrefix(contentValue, "[ ] ") },
-                            testTag = "fmt_checklist"
-                        )
-                        FormatToolbarButton(
-                            icon = Icons.AutoMirrored.Rounded.FormatListBulleted,
-                            contentDescription = "Daftar poin",
-                            onClick = { contentValue = applyRichLinePrefix(contentValue, "- ") },
-                            testTag = "fmt_bullet"
-                        )
-                        FormatToolbarButton(
-                            icon = Icons.Outlined.FormatListNumbered,
-                            contentDescription = "Daftar bernomor",
-                            onClick = { contentValue = applyRichLinePrefix(contentValue, "1. ") },
-                            testTag = "fmt_numbered"
-                        )
-                        FormatToolbarButton(
-                            icon = Icons.Outlined.FormatQuote,
-                            contentDescription = "Kutipan",
-                            onClick = { contentValue = applyRichLinePrefix(contentValue, "> ") },
-                            testTag = "fmt_quote"
+                        Text(
+                            text = if (isChecked) "Tandai Belum" else "Tandai Selesai",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 11.sp
+                            ),
+                            color = if (isChecked) colors.textSecondary else colors.accentEmerald
                         )
                     }
+                }
+            }
+        }
+
+        // 5. Google Keep-Style Pastel Color Picker Strip (docked right above the bottom bar)
+        AnimatedVisibility(
+            visible = showPaletteStrip,
+            enter = fadeIn() + expandVertically(),
+            exit = fadeOut() + shrinkVertically()
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(colors.cardSurface)
+            ) {
+                HorizontalDivider(color = surfaceBorder.copy(alpha = 0.8f))
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState())
+                        .padding(horizontal = 16.dp, vertical = 10.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    NoteColorPalette.entries.forEach { palette ->
+                        val isSelected = selectedPalette == palette
+                        Box(
+                            modifier = Modifier
+                                .size(34.dp)
+                                .clip(CircleShape)
+                                .background(palette.swatchColor)
+                                .border(
+                                    width = if (isSelected) 2.5.dp else 1.dp,
+                                    color = if (isSelected) colors.accentAmber else colors.borderSubtle,
+                                    shape = CircleShape
+                                )
+                                .clickable { selectedPalette = palette }
+                                .testTag("note_color_${palette.key}"),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (isSelected) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Check,
+                                    contentDescription = palette.label,
+                                    tint = Color(0xFF1A1B1E),
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // 6. Sleek Edge-to-Edge Docked Rich Text Formatting Bar (sits flush above keyboard!)
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            color = colors.cardSurface,
+            tonalElevation = 0.dp
+        ) {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                HorizontalDivider(color = surfaceBorder)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState())
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    FormatToolbarButton(
+                        icon = Icons.Rounded.Title,
+                        contentDescription = "Judul (Heading)",
+                        active = richState.isCurrentLineHeading,
+                        onClick = { richState = richState.toggleHeading() },
+                        testTag = "fmt_heading"
+                    )
+                    FormatToolbarButton(
+                        icon = Icons.Rounded.FormatBold,
+                        contentDescription = "Tebal (Bold)",
+                        active = richState.isStyleActive(InlineStyle.BOLD),
+                        onClick = { richState = richState.toggleInlineStyle(InlineStyle.BOLD) },
+                        testTag = "fmt_bold"
+                    )
+                    FormatToolbarButton(
+                        icon = Icons.Rounded.FormatItalic,
+                        contentDescription = "Miring (Italic)",
+                        active = richState.isStyleActive(InlineStyle.ITALIC),
+                        onClick = { richState = richState.toggleInlineStyle(InlineStyle.ITALIC) },
+                        testTag = "fmt_italic"
+                    )
+                    FormatToolbarButton(
+                        icon = Icons.Rounded.FormatUnderlined,
+                        contentDescription = "Garis bawah (Underline)",
+                        active = richState.isStyleActive(InlineStyle.UNDERLINE),
+                        onClick = { richState = richState.toggleInlineStyle(InlineStyle.UNDERLINE) },
+                        testTag = "fmt_underline"
+                    )
+                    FormatToolbarButton(
+                        icon = Icons.Rounded.FormatStrikethrough,
+                        contentDescription = "Coret (Strikethrough)",
+                        active = richState.isStyleActive(InlineStyle.STRIKETHROUGH),
+                        onClick = { richState = richState.toggleInlineStyle(InlineStyle.STRIKETHROUGH) },
+                        testTag = "fmt_strike"
+                    )
+
+                    ToolbarDivider()
+
+                    FormatToolbarButton(
+                        icon = Icons.Outlined.CheckBox,
+                        contentDescription = "Checklist tugas",
+                        active = isOnChecklistLine,
+                        onClick = { richState = richState.toggleListPrefix(ListPrefixKind.CHECK_UNCHECKED) },
+                        testTag = "fmt_checklist"
+                    )
+                    FormatToolbarButton(
+                        icon = Icons.AutoMirrored.Rounded.FormatListBulleted,
+                        contentDescription = "Daftar poin",
+                        active = currentListKind == ListPrefixKind.BULLET,
+                        onClick = { richState = richState.toggleListPrefix(ListPrefixKind.BULLET) },
+                        testTag = "fmt_bullet"
+                    )
+                    FormatToolbarButton(
+                        icon = Icons.Outlined.FormatListNumbered,
+                        contentDescription = "Daftar bernomor",
+                        active = currentListKind == ListPrefixKind.NUMBERED,
+                        onClick = { richState = richState.toggleListPrefix(ListPrefixKind.NUMBERED) },
+                        testTag = "fmt_numbered"
+                    )
+                    FormatToolbarButton(
+                        icon = Icons.Outlined.FormatQuote,
+                        contentDescription = "Kutipan",
+                        active = richState.isCurrentLineQuote,
+                        onClick = { richState = richState.toggleQuote() },
+                        testTag = "fmt_quote"
+                    )
+
+                    ToolbarDivider()
+
+                    FormatToolbarButton(
+                        icon = Icons.Outlined.Palette,
+                        contentDescription = "Pilih warna catatan",
+                        active = showPaletteStrip,
+                        onClick = { showPaletteStrip = !showPaletteStrip },
+                        testTag = "note_editor_palette"
+                    )
                 }
             }
         }
@@ -615,87 +696,15 @@ fun CatatanEditorScreen(
 }
 
 @Composable
-private fun InteractiveRichTextReader(
-    rawContent: String,
-    onToggleChecklistLine: (Int) -> Unit
-) {
+private fun ToolbarDivider() {
     val colors = KarirKuThemeTokens.colors
-    if (rawContent.isBlank()) {
-        Text(
-            text = "Catatan masih kosong.",
-            style = MaterialTheme.typography.bodyMedium,
-            color = colors.textMuted
-        )
-        return
-    }
-
-    val lines = remember(rawContent) { rawContent.split("\n") }
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        lines.forEachIndexed { idx, line ->
-            val isUnchecked = line.startsWith("[ ] ")
-            val isChecked = line.startsWith("[x] ") || line.startsWith("[X] ")
-
-            if (isUnchecked || isChecked) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(10.dp))
-                        .clickable { onToggleChecklistLine(idx) }
-                        .padding(vertical = 4.dp, horizontal = 2.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(20.dp)
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(if (isChecked) colors.accentEmerald else Color.Transparent)
-                            .border(
-                                width = 1.6.dp,
-                                color = if (isChecked) colors.accentEmerald else colors.accentAmber,
-                                shape = RoundedCornerShape(6.dp)
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        if (isChecked) {
-                            Icon(
-                                imageVector = Icons.Rounded.Check,
-                                contentDescription = null,
-                                tint = Color.White,
-                                modifier = Modifier.size(14.dp)
-                            )
-                        }
-                    }
-                    Text(
-                        text = buildCleanRichTextAnnotatedString(
-                            raw = line.drop(4),
-                            accentColor = colors.accentAmber,
-                            emeraldColor = colors.accentEmerald,
-                            mutedColor = colors.textMuted,
-                            textColor = colors.textPrimary
-                        ),
-                        style = MaterialTheme.typography.bodyLarge.copy(
-                            textDecoration = if (isChecked) TextDecoration.LineThrough else TextDecoration.None
-                        ),
-                        color = if (isChecked) colors.textMuted else colors.textPrimary,
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-            } else {
-                Text(
-                    text = buildCleanRichTextAnnotatedString(
-                        raw = line,
-                        accentColor = colors.accentAmber,
-                        emeraldColor = colors.accentEmerald,
-                        mutedColor = colors.textMuted,
-                        textColor = colors.textPrimary
-                    ),
-                    style = MaterialTheme.typography.bodyLarge.copy(lineHeight = 23.sp),
-                    color = colors.textPrimary
-                )
-            }
-        }
-    }
+    Box(
+        modifier = Modifier
+            .padding(horizontal = 3.dp)
+            .width(1.dp)
+            .height(22.dp)
+            .background(colors.borderSubtle)
+    )
 }
 
 @Composable
@@ -712,7 +721,7 @@ private fun EditorTopIconButton(
         modifier = modifier
             .size(40.dp)
             .clip(CircleShape)
-            .background(if (active) colors.amberSoftBg else colors.cardSurface.copy(alpha = 0.9f))
+            .background(if (active) colors.amberSoftBg else colors.cardSurface.copy(alpha = 0.92f))
             .border(
                 width = 1.dp,
                 color = if (active) colors.accentAmber.copy(alpha = 0.55f) else borderColor,
@@ -734,14 +743,21 @@ private fun EditorTopIconButton(
 private fun FormatToolbarButton(
     icon: ImageVector,
     contentDescription: String,
+    active: Boolean,
     onClick: () -> Unit,
     testTag: String
 ) {
     val colors = KarirKuThemeTokens.colors
     Box(
         modifier = Modifier
-            .size(38.dp)
+            .size(40.dp)
             .clip(RoundedCornerShape(11.dp))
+            .background(if (active) colors.amberSoftBg else Color.Transparent)
+            .border(
+                width = if (active) 1.dp else 0.dp,
+                color = if (active) colors.accentAmber.copy(alpha = 0.5f) else Color.Transparent,
+                shape = RoundedCornerShape(11.dp)
+            )
             .tactileClickable(pressedScale = 0.90f, onClick = onClick)
             .testTag(testTag),
         contentAlignment = Alignment.Center
@@ -749,7 +765,7 @@ private fun FormatToolbarButton(
         Icon(
             imageVector = icon,
             contentDescription = contentDescription,
-            tint = colors.textPrimary,
+            tint = if (active) colors.accentAmber else colors.textPrimary,
             modifier = Modifier.size(20.dp)
         )
     }

@@ -70,6 +70,7 @@ import com.example.ui.components.NoteColorPalette
 import com.example.ui.components.TactileRaisedButton
 import com.example.ui.components.TactileRaisedCard
 import com.example.ui.components.buildCleanRichTextAnnotatedString
+import com.example.ui.components.extractPlainNoteText
 import com.example.ui.components.modernColoredShadow
 import com.example.ui.components.tactileClickable
 import com.example.ui.theme.KarirKuThemeTokens
@@ -109,7 +110,7 @@ fun CatatanScreen(
             val matchesTag = selectedTag == null || note.tag.equals(selectedTag, ignoreCase = true)
             val matchesQuery = q.isBlank() ||
                 note.title.lowercase().contains(q) ||
-                note.content.lowercase().contains(q) ||
+                extractPlainNoteText(note.content).lowercase().contains(q) ||
                 note.tag.lowercase().contains(q)
             matchesTag && matchesQuery
         }
