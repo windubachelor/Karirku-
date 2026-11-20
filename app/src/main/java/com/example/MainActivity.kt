@@ -88,6 +88,7 @@ import com.example.ui.components.KarirKuTopBar
 import com.example.ui.components.modernColoredShadow
 import com.example.ui.components.tactileClickable
 import com.example.ui.screens.BerandaScreen
+import com.example.ui.screens.CatatanEditorScreen
 import com.example.ui.screens.CatatanScreen
 import com.example.ui.screens.DossierFormScreen
 import com.example.ui.screens.InfoLowonganScreen
@@ -132,7 +133,8 @@ private enum class SecondaryScreen {
     NONE,
     FORM,
     INFO_LOWONGAN,
-    CATATAN
+    CATATAN,
+    CATATAN_EDITOR
 }
 
 @Composable
@@ -197,6 +199,7 @@ private fun AuthenticatedKarirKuShell(user: FirebaseUser) {
         var activeTab by rememberSaveable { mutableStateOf(KarirKuTab.BERANDA) }
         var secondaryScreen by rememberSaveable { mutableStateOf(SecondaryScreen.NONE) }
         var editingApplicationId by rememberSaveable { mutableStateOf<String?>(null) }
+        var editingNoteId by rememberSaveable { mutableStateOf<String?>(null) }
         var inspectedApplicationId by rememberSaveable { mutableStateOf<String?>(null) }
         var pendingDeleteAppId by rememberSaveable { mutableStateOf<String?>(null) }
         var preselectedAppForScheduleId by rememberSaveable { mutableStateOf<String?>(null) }
@@ -210,6 +213,9 @@ private fun AuthenticatedKarirKuShell(user: FirebaseUser) {
 
         val editingApplication = remember(editingApplicationId, dashboardState.applications) {
             dashboardState.applications.firstOrNull { it.id == editingApplicationId }
+        }
+        val editingNote = remember(editingNoteId, notesState) {
+            (notesState as? UiState.Success)?.data?.firstOrNull { it.id == editingNoteId }
         }
         val inspectedApplication = remember(inspectedApplicationId, dashboardState.applications) {
             dashboardState.applications.firstOrNull { it.id == inspectedApplicationId }
@@ -324,11 +330,32 @@ private fun AuthenticatedKarirKuShell(user: FirebaseUser) {
                                 SecondaryScreen.CATATAN -> {
                                     CatatanScreen(
                                         notesState = notesState,
-                                        isSaving = isSaving,
                                         onNavigateBack = { secondaryScreen = SecondaryScreen.NONE },
-                                        onSaveNote = viewModel::saveNote,
+                                        onCreateNewNote = {
+                                            editingNoteId = null
+                                            secondaryScreen = SecondaryScreen.CATATAN_EDITOR
+                                        },
+                                        onOpenNote = { note ->
+                                            editingNoteId = note.id
+                                            secondaryScreen = SecondaryScreen.CATATAN_EDITOR
+                                        },
                                         onTogglePin = viewModel::toggleNotePinned,
-                                        onDeleteNote = viewModel::deleteNote
+                                        onDeleteNote = { id -> viewModel.deleteNote(id) }
+                                    )
+                                }
+
+                                SecondaryScreen.CATATAN_EDITOR -> {
+                                    CatatanEditorScreen(
+                                        existingNote = editingNote,
+                                        isSaving = isSaving,
+                                        onNavigateBack = {
+                                            editingNoteId = null
+                                            secondaryScreen = SecondaryScreen.CATATAN
+                                        },
+                                        onSave = viewModel::saveNote,
+                                        onDelete = { id, onDeleted ->
+                                            viewModel.deleteNote(id, onSuccess = onDeleted)
+                                        }
                                     )
                                 }
 

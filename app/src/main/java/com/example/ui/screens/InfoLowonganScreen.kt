@@ -29,8 +29,11 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
+import androidx.compose.material.icons.outlined.AccessTime
 import androidx.compose.material.icons.outlined.BusinessCenter
+import androidx.compose.material.icons.outlined.CalendarToday
 import androidx.compose.material.icons.outlined.DeleteOutline
+import androidx.compose.material.icons.outlined.EventBusy
 import androidx.compose.material.icons.outlined.LaptopMac
 import androidx.compose.material.icons.outlined.Link
 import androidx.compose.material.icons.outlined.LocationOn
@@ -45,9 +48,12 @@ import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.Public
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -55,15 +61,18 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -87,6 +96,10 @@ import com.example.ui.theme.MonoEyebrowStyle
 import com.example.ui.theme.MonoMetricStyle
 import com.example.ui.theme.UnboundedFontFamily
 import com.example.viewmodel.UiState
+import kotlin.math.ceil
+
+private const val THREE_DAYS_MILLIS = 3L * 24L * 60L * 60L * 1000L
+private const val ONE_DAY_MILLIS = 24L * 60L * 60L * 1000L
 
 @Composable
 fun InfoLowonganScreen(
@@ -94,7 +107,17 @@ fun InfoLowonganScreen(
     currentUserId: String,
     isSaving: Boolean,
     onNavigateBack: () -> Unit,
-    onSaveListing: (String?, String, String, JobListingCategory, String, String, String, () -> Unit) -> Unit,
+    onSaveListing: (
+        existingId: String?,
+        title: String,
+        companyName: String,
+        category: JobListingCategory,
+        location: String,
+        subtitle: String,
+        externalUrl: String,
+        expiresAtMillis: Long,
+        onSuccess: () -> Unit
+    ) -> Unit,
     onDeleteListing: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -419,8 +442,8 @@ fun InfoLowonganScreen(
         AddPublicJobBottomSheet(
             isSaving = isSaving,
             onDismiss = { showAddSheet = false },
-            onSave = { title, company, category, location, subtitle, url ->
-                onSaveListing(null, title, company, category, location, subtitle, url) {
+            onSave = { title, company, category, location, subtitle, url, expiresAtMillis ->
+                onSaveListing(null, title, company, category, location, subtitle, url, expiresAtMillis) {
                     showAddSheet = false
                 }
             }
@@ -452,9 +475,10 @@ fun InfoLowonganScreen(
 }
 
 /**
- * Designed to mirror ProfilScreen's modern `CareerDocumentRowCard`:
- * TactileRaisedCard + colored 46dp icon squircle + category/domain meta row + bold title +
- * clean "Lihat ›" action pill + minimalist MoreVert menu.
+ * Mirrors ProfilScreen's modern `CareerDocumentRowCard` aesthetic and adds:
+ * - Seamless integrated rounded top-right corner ribbon "Baru ditambahkan" (auto-hides after 3 days)
+ * - Contributor account attribution (avatar initials + name)
+ * - Date added timestamp & expiration date / countdown badge
  */
 @Composable
 private fun PublicJobListingRowCard(
@@ -493,202 +517,392 @@ private fun PublicJobListingRowCard(
         else listing.companyName
     }
 
+    val nowMillis = remember { System.currentTimeMillis() }
+    val createdMillis = listing.createdAt?.toDate()?.time
+    // Automatically visible when added within the last 3 days (72 hours), hidden after 3 days
+    val isNewlyAdded = createdMillis == null || (nowMillis - createdMillis) in 0L..THREE_DAYS_MILLIS
+
+    val authorInitials = remember(listing.authorName) {
+        listing.authorName.trim()
+            .split(Regex("\\s+"))
+            .take(2)
+            .joinToString("") { it.take(1).uppercase() }
+            .ifBlank { "KK" }
+    }
+
+    val addedDateLabel = remember(createdMillis) {
+        if (createdMillis != null) {
+            "${KarirKuFormatters.formatDateShort(createdMillis)} • ${KarirKuFormatters.formatRelativeTime(listing.createdAt)}"
+        } else {
+            "Baru saja"
+        }
+    }
+
+    val isExpired = listing.expiresAtMillis > 0L && listing.expiresAtMillis < nowMillis
+    val daysUntilExpiry = if (listing.expiresAtMillis > nowMillis) {
+        ceil((listing.expiresAtMillis - nowMillis).toDouble() / ONE_DAY_MILLIS.toDouble()).toLong()
+    } else 0L
+
     TactileRaisedCard(
         modifier = Modifier
             .fillMaxWidth()
             .testTag("public_job_card_${listing.id}"),
         containerColor = colors.cardSurface,
-        borderColor = colors.borderSubtle,
+        borderColor = if (isNewlyAdded) colors.emeraldBorder else colors.borderSubtle,
         cornerRadius = 20.dp,
         lipDepth = 2.5.dp,
         onClick = if (hasLink) onOpen else null
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(46.dp)
-                    .modernColoredShadow(
-                        color = tintFg.copy(alpha = 0.20f),
-                        cornerRadius = 14.dp,
-                        blurRadius = 10.dp,
-                        offsetY = 4.dp
-                    )
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(tintBg),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(icon, contentDescription = null, tint = tintFg, modifier = Modifier.size(22.dp))
+        Box(modifier = Modifier.fillMaxWidth()) {
+            // Integrated Rounded Corner Ribbon ("Baru ditambahkan") seamlessly fused to TopEnd
+            if (isNewlyAdded) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .clip(RoundedCornerShape(bottomStart = 14.dp))
+                        .background(
+                            Brush.horizontalGradient(
+                                colors = listOf(Color(0xFF10B981), Color(0xFF059669))
+                            )
+                        )
+                        .padding(horizontal = 11.dp, vertical = 4.dp)
+                        .testTag("public_job_new_badge_${listing.id}")
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(5.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(5.dp)
+                                .clip(CircleShape)
+                                .background(Color.White)
+                        )
+                        Text(
+                            text = "Baru ditambahkan",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontWeight = FontWeight.ExtraBold,
+                                fontSize = 9.5.sp,
+                                letterSpacing = 0.2.sp
+                            ),
+                            color = Color.White,
+                            maxLines = 1,
+                            softWrap = false
+                        )
+                    }
+                }
             }
 
             Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(3.dp)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(
+                        start = 14.dp,
+                        end = 14.dp,
+                        top = if (isNewlyAdded) 28.dp else 14.dp,
+                        bottom = 12.dp
+                    ),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
+                // Main Row matching Profil -> Dokumen & Portofolio
                 Row(
+                    modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Surface(
-                        shape = RoundedCornerShape(6.dp),
-                        color = tintBg
+                    Box(
+                        modifier = Modifier
+                            .size(46.dp)
+                            .modernColoredShadow(
+                                color = tintFg.copy(alpha = 0.20f),
+                                cornerRadius = 14.dp,
+                                blurRadius = 10.dp,
+                                offsetY = 4.dp
+                            )
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(tintBg),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Text(
-                            text = listing.categoryEnum.label.uppercase(),
-                            style = MonoEyebrowStyle.copy(fontSize = 8.5.sp, letterSpacing = 0.3.sp),
-                            color = tintFg,
-                            maxLines = 1,
-                            softWrap = false,
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                        )
+                        Icon(icon, contentDescription = null, tint = tintFg, modifier = Modifier.size(22.dp))
                     }
-                    if (hostPreview.isNotBlank()) {
+
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(3.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
+                                color = tintBg
+                            ) {
+                                Text(
+                                    text = listing.categoryEnum.label.uppercase(),
+                                    style = MonoEyebrowStyle.copy(fontSize = 8.5.sp, letterSpacing = 0.3.sp),
+                                    color = tintFg,
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                )
+                            }
+                            if (hostPreview.isNotBlank()) {
+                                Text(
+                                    text = hostPreview,
+                                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                                    color = colors.textMuted,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+
                         Text(
-                            text = hostPreview,
-                            style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
-                            color = colors.textMuted,
+                            text = listing.title,
+                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                            color = colors.textPrimary,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
-                    }
-                }
 
-                Text(
-                    text = listing.title,
-                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                    color = colors.textPrimary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
+                        Text(
+                            text = companyLocationLine,
+                            style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
+                            color = colors.textSecondary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
 
-                Text(
-                    text = companyLocationLine,
-                    style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
-                    color = colors.textSecondary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-
-                val extraInfo = listing.subtitle.trim()
-                if (extraInfo.isNotBlank()) {
-                    Text(
-                        text = extraInfo,
-                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
-                        color = colors.textMuted,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-
-                Text(
-                    text = "Oleh ${listing.authorName} • ${KarirKuFormatters.formatRelativeTime(listing.createdAt)}",
-                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 10.5.sp),
-                    color = colors.textMuted.copy(alpha = 0.85f),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-
-            // Modern action pill + minimalist overflow menu matching Dokumen & Portofolio
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                if (hasLink) {
-                    Surface(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(999.dp))
-                            .tactileClickable(onClick = onOpen)
-                            .testTag("public_job_open_${listing.id}"),
-                        shape = RoundedCornerShape(999.dp),
-                        color = colors.recessedSurface,
-                        border = BorderStroke(1.dp, colors.borderSubtle)
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(2.dp)
-                        ) {
+                        val extraInfo = listing.subtitle.trim()
+                        if (extraInfo.isNotBlank()) {
                             Text(
-                                text = "Lihat",
-                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                color = colors.textPrimary,
+                                text = extraInfo,
+                                style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                                color = colors.textMuted,
                                 maxLines = 1,
-                                softWrap = false
-                            )
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
-                                contentDescription = "Buka tautan lowongan",
-                                tint = colors.accentAmber,
-                                modifier = Modifier.size(15.dp)
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
                     }
-                }
 
-                if (isAuthor) {
-                    Box {
-                        IconButton(
-                            onClick = { showMenu = true },
-                            modifier = Modifier
-                                .size(34.dp)
-                                .testTag("public_job_more_${listing.id}")
-                        ) {
-                            Icon(
-                                imageVector = Icons.Rounded.MoreVert,
-                                contentDescription = "Opsi lowongan",
-                                tint = colors.textMuted,
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
-                        DropdownMenu(
-                            expanded = showMenu,
-                            onDismissRequest = { showMenu = false },
-                            containerColor = colors.cardSurface,
-                            shape = RoundedCornerShape(16.dp)
-                        ) {
-                            if (hasLink) {
-                                DropdownMenuItem(
-                                    text = { Text("Buka Lowongan", color = colors.textPrimary) },
-                                    leadingIcon = {
-                                        Icon(
-                                            Icons.Outlined.OpenInNew,
-                                            contentDescription = null,
-                                            tint = colors.textSecondary,
-                                            modifier = Modifier.size(18.dp)
-                                        )
-                                    },
-                                    onClick = {
-                                        showMenu = false
-                                        onOpen()
-                                    }
-                                )
-                            }
-                            DropdownMenuItem(
-                                text = {
+                    // Modern action pill + minimalist overflow menu matching Dokumen & Portofolio
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        if (hasLink) {
+                            Surface(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(999.dp))
+                                    .tactileClickable(onClick = onOpen)
+                                    .testTag("public_job_open_${listing.id}"),
+                                shape = RoundedCornerShape(999.dp),
+                                color = colors.recessedSurface,
+                                border = BorderStroke(1.dp, colors.borderSubtle)
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(2.dp)
+                                ) {
                                     Text(
-                                        "Hapus Lowongan",
-                                        color = colors.accentCrimson,
-                                        fontWeight = FontWeight.SemiBold
+                                        text = "Lihat",
+                                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                        color = colors.textPrimary,
+                                        maxLines = 1,
+                                        softWrap = false
                                     )
-                                },
-                                leadingIcon = {
                                     Icon(
-                                        Icons.Outlined.DeleteOutline,
-                                        contentDescription = null,
-                                        tint = colors.accentCrimson,
+                                        imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+                                        contentDescription = "Buka tautan lowongan",
+                                        tint = colors.accentAmber,
+                                        modifier = Modifier.size(15.dp)
+                                    )
+                                }
+                            }
+                        }
+
+                        if (isAuthor) {
+                            Box {
+                                IconButton(
+                                    onClick = { showMenu = true },
+                                    modifier = Modifier
+                                        .size(34.dp)
+                                        .testTag("public_job_more_${listing.id}")
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.MoreVert,
+                                        contentDescription = "Opsi lowongan",
+                                        tint = colors.textMuted,
                                         modifier = Modifier.size(18.dp)
                                     )
-                                },
-                                onClick = {
-                                    showMenu = false
-                                    onDelete()
                                 }
+                                DropdownMenu(
+                                    expanded = showMenu,
+                                    onDismissRequest = { showMenu = false },
+                                    containerColor = colors.cardSurface,
+                                    shape = RoundedCornerShape(16.dp)
+                                ) {
+                                    if (hasLink) {
+                                        DropdownMenuItem(
+                                            text = { Text("Buka Lowongan", color = colors.textPrimary) },
+                                            leadingIcon = {
+                                                Icon(
+                                                    Icons.Outlined.OpenInNew,
+                                                    contentDescription = null,
+                                                    tint = colors.textSecondary,
+                                                    modifier = Modifier.size(18.dp)
+                                                )
+                                            },
+                                            onClick = {
+                                                showMenu = false
+                                                onOpen()
+                                            }
+                                        )
+                                    }
+                                    DropdownMenuItem(
+                                        text = {
+                                            Text(
+                                                "Hapus Lowongan",
+                                                color = colors.accentCrimson,
+                                                fontWeight = FontWeight.SemiBold
+                                            )
+                                        },
+                                        leadingIcon = {
+                                            Icon(
+                                                Icons.Outlined.DeleteOutline,
+                                                contentDescription = null,
+                                                tint = colors.accentCrimson,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        },
+                                        onClick = {
+                                            showMenu = false
+                                            onDelete()
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                HorizontalDivider(color = colors.borderSubtle.copy(alpha = 0.6f))
+
+                // Footer Metadata Strip: Author Account + Added Date + Expiration Info
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            modifier = Modifier.weight(1f),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(7.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(22.dp)
+                                    .clip(CircleShape)
+                                    .background(colors.heroDarkSurface),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = authorInitials,
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 9.sp
+                                    ),
+                                    color = colors.heroOnDark
+                                )
+                            }
+                            Text(
+                                text = if (isAuthor) "${listing.authorName} (Kamu)" else listing.authorName,
+                                style = MaterialTheme.typography.bodySmall.copy(
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 11.5.sp
+                                ),
+                                color = colors.textPrimary,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.AccessTime,
+                                contentDescription = null,
+                                tint = colors.textMuted,
+                                modifier = Modifier.size(12.dp)
+                            )
+                            Text(
+                                text = "Ditambah $addedDateLabel",
+                                style = MaterialTheme.typography.bodySmall.copy(fontSize = 10.5.sp),
+                                color = colors.textMuted,
+                                maxLines = 1
+                            )
+                        }
+                    }
+
+                    // Expiry Status Chip
+                    val (expiryBg, expiryFg, expiryText) = when {
+                        isExpired -> Triple(
+                            colors.crimsonSoftBg,
+                            colors.accentCrimson,
+                            "Masa berlaku habis (${KarirKuFormatters.formatDateShort(listing.expiresAtMillis)})"
+                        )
+
+                        listing.expiresAtMillis > 0L && daysUntilExpiry <= 3L -> Triple(
+                            colors.amberSoftBg,
+                            colors.amberText,
+                            "Berakhir s/d ${KarirKuFormatters.formatDateShort(listing.expiresAtMillis)} • Sisa $daysUntilExpiry hari"
+                        )
+
+                        listing.expiresAtMillis > 0L -> Triple(
+                            colors.emeraldSoftBg,
+                            colors.accentEmerald,
+                            "Berlaku s/d ${KarirKuFormatters.formatDateShort(listing.expiresAtMillis)} • Sisa $daysUntilExpiry hari"
+                        )
+
+                        else -> Triple(
+                            colors.recessedSurface,
+                            colors.textMuted,
+                            "Berlaku hingga lowongan ditutup"
+                        )
+                    }
+
+                    Surface(
+                        shape = RoundedCornerShape(9.dp),
+                        color = expiryBg
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(5.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (isExpired) Icons.Outlined.EventBusy else Icons.Outlined.CalendarToday,
+                                contentDescription = null,
+                                tint = expiryFg,
+                                modifier = Modifier.size(12.dp)
+                            )
+                            Text(
+                                text = expiryText,
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 10.5.sp
+                                ),
+                                color = expiryFg,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
                     }
@@ -735,7 +949,7 @@ private fun CategoryFilterChip(
 private fun AddPublicJobBottomSheet(
     isSaving: Boolean,
     onDismiss: () -> Unit,
-    onSave: (String, String, JobListingCategory, String, String, String) -> Unit
+    onSave: (String, String, JobListingCategory, String, String, String, Long) -> Unit
 ) {
     val colors = KarirKuThemeTokens.colors
     var title by remember { mutableStateOf("") }
@@ -744,6 +958,11 @@ private fun AddPublicJobBottomSheet(
     var location by remember { mutableStateOf("") }
     var subtitle by remember { mutableStateOf("") }
     var url by remember { mutableStateOf("") }
+
+    // Default 14-day validity period so users see clear expiration date immediately
+    val initialExpiry = remember { System.currentTimeMillis() + 14L * ONE_DAY_MILLIS }
+    var expiresAtMillis by remember { mutableLongStateOf(initialExpiry) }
+    var showExpiryDatePicker by remember { mutableStateOf(false) }
 
     val canSubmit = title.isNotBlank() && company.isNotBlank() && url.isNotBlank() && !isSaving
 
@@ -871,6 +1090,86 @@ private fun AddPublicJobBottomSheet(
                 )
             }
 
+            // Masa Berlaku / Expired Lowongan
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("MASA BERLAKU (EXPIRED)", style = MonoEyebrowStyle, color = colors.textMuted)
+                    Text(
+                        text = if (expiresAtMillis > 0L) "s/d ${KarirKuFormatters.formatDateShort(expiresAtMillis)}" else "Tanpa batas",
+                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                        color = colors.accentEmerald
+                    )
+                }
+
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(7.dp),
+                    verticalArrangement = Arrangement.spacedBy(7.dp)
+                ) {
+                    val now = System.currentTimeMillis()
+                    listOf(
+                        "7 Hari" to (now + 7L * ONE_DAY_MILLIS),
+                        "14 Hari" to (now + 14L * ONE_DAY_MILLIS),
+                        "30 Hari" to (now + 30L * ONE_DAY_MILLIS),
+                        "Tanpa Batas" to 0L
+                    ).forEach { (label, targetMs) ->
+                        val isPicked = when {
+                            targetMs == 0L -> expiresAtMillis == 0L
+                            expiresAtMillis == 0L -> false
+                            else -> kotlin.math.abs(expiresAtMillis - targetMs) < ONE_DAY_MILLIS / 2
+                        }
+                        Surface(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(10.dp))
+                                .tactileClickable { expiresAtMillis = targetMs },
+                            shape = RoundedCornerShape(10.dp),
+                            color = if (isPicked) colors.heroDarkSurface else colors.recessedSurface,
+                            border = BorderStroke(
+                                1.dp,
+                                if (isPicked) colors.heroDarkSurface else colors.borderSubtle
+                            )
+                        ) {
+                            Text(
+                                text = label,
+                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                color = if (isPicked) colors.heroOnDark else colors.textSecondary,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp)
+                            )
+                        }
+                    }
+
+                    Surface(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(10.dp))
+                            .tactileClickable { showExpiryDatePicker = true },
+                        shape = RoundedCornerShape(10.dp),
+                        color = colors.amberSoftBg,
+                        border = BorderStroke(1.dp, colors.accentAmber.copy(alpha = 0.4f))
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.CalendarToday,
+                                contentDescription = null,
+                                tint = colors.amberText,
+                                modifier = Modifier.size(13.dp)
+                            )
+                            Text(
+                                text = "Pilih Tanggal",
+                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                color = colors.amberText
+                            )
+                        }
+                    }
+                }
+            }
+
             Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
                 Text("CATATAN SINGKAT (OPSIONAL)", style = MonoEyebrowStyle, color = colors.textMuted)
                 KarirKuCompactTextField(
@@ -901,7 +1200,7 @@ private fun AddPublicJobBottomSheet(
             Spacer(modifier = Modifier.height(4.dp))
 
             TactileRaisedButton(
-                onClick = { onSave(title, company, category, location, subtitle, url) },
+                onClick = { onSave(title, company, category, location, subtitle, url, expiresAtMillis) },
                 enabled = canSubmit,
                 containerColor = colors.heroDarkSurface,
                 contentColor = colors.heroOnDark,
@@ -926,6 +1225,32 @@ private fun AddPublicJobBottomSheet(
                     )
                 )
             }
+        }
+    }
+
+    if (showExpiryDatePicker) {
+        val datePickerState = rememberDatePickerState(
+            initialSelectedDateMillis = if (expiresAtMillis > 0L) expiresAtMillis else System.currentTimeMillis() + 14L * ONE_DAY_MILLIS
+        )
+        DatePickerDialog(
+            onDismissRequest = { showExpiryDatePicker = false },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        datePickerState.selectedDateMillis?.let { picked ->
+                            expiresAtMillis = picked
+                        }
+                        showExpiryDatePicker = false
+                    }
+                ) {
+                    Text("Pilih", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showExpiryDatePicker = false }) { Text("Batal") }
+            }
+        ) {
+            DatePicker(state = datePickerState)
         }
     }
 }

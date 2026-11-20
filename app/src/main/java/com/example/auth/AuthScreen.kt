@@ -65,12 +65,16 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
@@ -412,28 +416,36 @@ private fun WelcomeAuthPage(
 
         Spacer(modifier = Modifier.height(14.dp))
 
-        // Cute Vector Character Hero Illustration (Behance Onboarding Style)
-        Surface(
+        // Frameless Cute Vector Character Hero Illustration (blends seamlessly onto canvas)
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 6.dp)
-                .modernColoredShadow(
-                    color = colors.accentAmber.copy(alpha = if (colors.isDark) 0.16f else 0.14f),
-                    cornerRadius = 32.dp,
-                    blurRadius = 26.dp,
-                    offsetY = 12.dp
-                ),
-            shape = RoundedCornerShape(32.dp),
-            color = Color(0xFFFBF8F3),
-            border = BorderStroke(1.dp, colors.borderSubtle.copy(alpha = 0.8f))
+                .height(255.dp),
+            contentAlignment = Alignment.Center
         ) {
             Image(
                 painter = painterResource(id = R.drawable.img_auth_welcome_1795098523478),
                 contentDescription = "Ilustrasi pencari kerja KarirKu",
-                contentScale = ContentScale.Crop,
+                contentScale = ContentScale.Fit,
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .height(265.dp)
+                    .fillMaxSize()
+                    .graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen)
+                    .drawWithContent {
+                        drawContent()
+                        // Soft seamless edge feathering so illustration floats completely frameless
+                        drawRect(
+                            brush = Brush.radialGradient(
+                                colorStops = arrayOf(
+                                    0.0f to Color.Black,
+                                    0.72f to Color.Black,
+                                    1.0f to Color.Transparent
+                                ),
+                                center = Offset(size.width / 2f, size.height / 2f),
+                                radius = size.minDimension * 0.56f
+                            ),
+                            blendMode = BlendMode.DstIn
+                        )
+                    }
             )
         }
 

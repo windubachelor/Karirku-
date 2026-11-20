@@ -106,8 +106,9 @@ service cloud.firestore {
     function isValidCareerNote(data, userId) {
       return data.userId is string && data.userId == userId &&
              data.title is string && data.title.size() >= 1 && data.title.size() <= 120 &&
-             data.content is string && data.content.size() <= 5000 &&
+             data.content is string && data.content.size() <= 10000 &&
              data.tag is string && data.tag.size() <= 40 &&
+             (!('colorKey' in data) || (data.colorKey is string && data.colorKey.size() <= 24)) &&
              data.pinned is bool &&
              data.createdAt is timestamp && data.createdAt <= request.time &&
              data.updatedAt is timestamp && data.updatedAt <= request.time;
@@ -122,6 +123,7 @@ service cloud.firestore {
              data.location is string && data.location.size() <= 120 &&
              data.subtitle is string && data.subtitle.size() <= 200 &&
              data.externalUrl is string && data.externalUrl.size() >= 1 && data.externalUrl.size() <= 600 &&
+             (!('expiresAtMillis' in data) || (data.expiresAtMillis is int && data.expiresAtMillis >= 0)) &&
              data.createdAt is timestamp && data.createdAt <= request.time &&
              data.updatedAt is timestamp && data.updatedAt <= request.time;
     }
@@ -295,7 +297,7 @@ service cloud.firestore {
                            'createdAt', 'updatedAt'
                          ]) &&
                          incoming().keys().hasOnly([
-                           'userId', 'title', 'content', 'tag', 'pinned',
+                           'userId', 'title', 'content', 'tag', 'colorKey', 'pinned',
                            'createdAt', 'updatedAt'
                          ]) &&
                          isValidCareerNote(incoming(), userId);
@@ -308,7 +310,7 @@ service cloud.firestore {
                          (
                            incoming().diff(existing()).affectedKeys().hasOnly(['pinned', 'updatedAt']) ||
                            incoming().diff(existing()).affectedKeys().hasOnly([
-                             'title', 'content', 'tag', 'pinned', 'updatedAt'
+                             'title', 'content', 'tag', 'colorKey', 'pinned', 'updatedAt'
                            ])
                          );
 
@@ -331,7 +333,7 @@ service cloud.firestore {
                        incoming().keys().hasOnly([
                          'authorUid', 'authorName', 'title', 'companyName',
                          'category', 'location', 'subtitle', 'externalUrl',
-                         'createdAt', 'updatedAt'
+                         'expiresAtMillis', 'createdAt', 'updatedAt'
                        ]) &&
                        incoming().authorUid == request.auth.uid &&
                        isValidPublicJobListing(incoming());
@@ -344,7 +346,7 @@ service cloud.firestore {
                        isValidPublicJobListing(incoming()) &&
                        incoming().diff(existing()).affectedKeys().hasOnly([
                          'authorName', 'title', 'companyName', 'category',
-                         'location', 'subtitle', 'externalUrl', 'updatedAt'
+                         'location', 'subtitle', 'externalUrl', 'expiresAtMillis', 'updatedAt'
                        ]);
 
       allow delete: if isSignedIn() &&

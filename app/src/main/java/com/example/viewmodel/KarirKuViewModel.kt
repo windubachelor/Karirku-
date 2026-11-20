@@ -482,6 +482,7 @@ class KarirKuViewModel(
         location: String,
         subtitle: String,
         externalUrl: String,
+        expiresAtMillis: Long = 0L,
         onSuccess: () -> Unit = {}
     ) {
         viewModelScope.launch {
@@ -498,7 +499,8 @@ class KarirKuViewModel(
                 category = category,
                 location = location,
                 subtitle = subtitle,
-                externalUrl = externalUrl
+                externalUrl = externalUrl,
+                expiresAtMillis = expiresAtMillis
             )
             _isSaving.value = false
             result.onSuccess {
@@ -530,6 +532,7 @@ class KarirKuViewModel(
         title: String,
         content: String,
         tag: String,
+        colorKey: String = "DEFAULT",
         pinned: Boolean,
         onSuccess: () -> Unit = {}
     ) {
@@ -541,6 +544,7 @@ class KarirKuViewModel(
                 title = title,
                 content = content,
                 tag = tag,
+                colorKey = colorKey,
                 pinned = pinned
             )
             _isSaving.value = false
@@ -565,10 +569,13 @@ class KarirKuViewModel(
         }
     }
 
-    fun deleteNote(noteId: String) {
+    fun deleteNote(noteId: String, onSuccess: () -> Unit = {}) {
         viewModelScope.launch {
             repository.deleteNote(currentUserId, noteId)
-                .onSuccess { _snackbarEvents.tryEmit("Catatan dihapus") }
+                .onSuccess {
+                    _snackbarEvents.tryEmit("Catatan dihapus")
+                    onSuccess()
+                }
                 .onFailure { err ->
                     _snackbarEvents.tryEmit(err.localizedMessage ?: "Gagal menghapus catatan")
                 }

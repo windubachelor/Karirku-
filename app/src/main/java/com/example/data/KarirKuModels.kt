@@ -262,6 +262,7 @@ data class PublicJobListing(
     val location: String = "",
     val subtitle: String = "",
     val externalUrl: String = "",
+    val expiresAtMillis: Long = 0L,
     @ServerTimestamp val createdAt: Timestamp? = null,
     @ServerTimestamp val updatedAt: Timestamp? = null
 ) {
@@ -277,6 +278,7 @@ data class CareerNote(
     val title: String = "",
     val content: String = "",
     val tag: String = "Umum",
+    val colorKey: String = "DEFAULT",
     val pinned: Boolean = false,
     @ServerTimestamp val createdAt: Timestamp? = null,
     @ServerTimestamp val updatedAt: Timestamp? = null

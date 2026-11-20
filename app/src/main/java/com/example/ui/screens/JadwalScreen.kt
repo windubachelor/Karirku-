@@ -4,6 +4,7 @@ import android.content.Intent
 import android.net.Uri
 import android.provider.CalendarContract
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -35,15 +36,18 @@ import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.Edit
-import androidx.compose.material.icons.outlined.EventAvailable
+import androidx.compose.material.icons.outlined.LocationOn
 import androidx.compose.material.icons.outlined.OpenInNew
 import androidx.compose.material.icons.outlined.PersonOutline
+import androidx.compose.material.icons.outlined.Phone
 import androidx.compose.material.icons.outlined.Videocam
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.CheckCircle
-import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -66,12 +70,18 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.InterviewSchedule
@@ -80,6 +90,7 @@ import com.example.data.KarirKuFormatters
 import com.example.data.MeetingFormat
 import com.example.ui.components.AtmosphericDarkCard
 import com.example.ui.components.ExpressiveEmptyStateCard
+import com.example.ui.components.InAppWebBrowserDialog
 import com.example.ui.components.KarirKuCompactTextField
 import com.example.ui.components.TactileRaisedButton
 import com.example.ui.components.TactileRaisedCard
@@ -146,6 +157,7 @@ fun JadwalScreen(
     var selectedDateKey by remember { mutableStateOf<String?>(null) }
     var showSheet by remember { mutableStateOf(false) }
     var editingSchedule by remember { mutableStateOf<InterviewSchedule?>(null) }
+    var inAppBrowserPreview by remember { mutableStateOf<Pair<String, String>?>(null) }
 
     // Safe side-effect trigger when jumping from a job detail sheet
     LaunchedEffect(preselectedApplicationForNewSchedule) {
@@ -382,10 +394,27 @@ fun JadwalScreen(
                             context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(normalized)))
                         } catch (_: Exception) {
                         }
+                    },
+                    onOpenOnsiteMaps = { loc ->
+                        val trimmed = loc.trim()
+                        val mapsUrl = if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+                            trimmed
+                        } else {
+                            "https://www.google.com/maps/search/?api=1&query=${Uri.encode(trimmed)}"
+                        }
+                        inAppBrowserPreview = "Lokasi ${schedule.companyName}" to mapsUrl
                     }
                 )
             }
         }
+    }
+
+    inAppBrowserPreview?.let { (title, url) ->
+        InAppWebBrowserDialog(
+            title = title,
+            url = url,
+            onDismiss = { inAppBrowserPreview = null }
+        )
     }
 
     if (showSheet) {
@@ -708,9 +737,12 @@ private fun ScheduleTimelineCard(
     onEdit: () -> Unit,
     onDelete: () -> Unit,
     onAddToCalendar: () -> Unit,
-    onOpenLink: (String) -> Unit
+    onOpenLink: (String) -> Unit,
+    onOpenOnsiteMaps: (String) -> Unit
 ) {
     val colors = KarirKuThemeTokens.colors
+    var showMenu by remember { mutableStateOf(false) }
+
     val dateObj = remember(schedule.scheduledAtMillis) { Date(schedule.scheduledAtMillis) }
     val monthStr = remember(dateObj) { SimpleDateFormat("MMM", Locale("in", "ID")).format(dateObj).uppercase() }
     val dayStr = remember(dateObj) { SimpleDateFormat("dd", Locale("in", "ID")).format(dateObj) }
@@ -720,6 +752,14 @@ private fun ScheduleTimelineCard(
         trimmed.startsWith("http://") ||
             trimmed.startsWith("https://") ||
             (trimmed.contains(".") && !trimmed.contains(" "))
+    }
+    val isOnsite = schedule.formatEnum == MeetingFormat.ONSITE
+    val hasOnsiteLocation = isOnsite && schedule.meetingLocation.isNotBlank()
+
+    val formatIcon = when (schedule.formatEnum) {
+        MeetingFormat.ONLINE -> Icons.Outlined.Videocam
+        MeetingFormat.ONSITE -> Icons.Outlined.LocationOn
+        MeetingFormat.PHONE -> Icons.Outlined.Phone
     }
 
     TactileRaisedCard(
@@ -802,15 +842,83 @@ private fun ScheduleTimelineCard(
                     )
                 }
 
-                IconButton(
-                    onClick = onToggleComplete,
-                    modifier = Modifier.testTag("schedule_complete_${schedule.id}")
+                // Modern Header Action Controls (Check + Minimalist MoreVert Dropdown matching Profil & Info Lowongan)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
-                    Icon(
-                        imageVector = if (schedule.completed) Icons.Rounded.CheckCircle else Icons.Outlined.CheckCircle,
-                        contentDescription = if (schedule.completed) "Batal selesai" else "Tandai selesai",
-                        tint = if (schedule.completed) colors.accentEmerald else colors.textMuted
-                    )
+                    IconButton(
+                        onClick = onToggleComplete,
+                        modifier = Modifier
+                            .size(36.dp)
+                            .testTag("schedule_complete_${schedule.id}")
+                    ) {
+                        Icon(
+                            imageVector = if (schedule.completed) Icons.Rounded.CheckCircle else Icons.Outlined.CheckCircle,
+                            contentDescription = if (schedule.completed) "Batal selesai" else "Tandai selesai",
+                            tint = if (schedule.completed) colors.accentEmerald else colors.textMuted,
+                            modifier = Modifier.size(21.dp)
+                        )
+                    }
+
+                    Box {
+                        IconButton(
+                            onClick = { showMenu = true },
+                            modifier = Modifier
+                                .size(34.dp)
+                                .testTag("schedule_more_${schedule.id}")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.MoreVert,
+                                contentDescription = "Opsi jadwal",
+                                tint = colors.textMuted,
+                                modifier = Modifier.size(19.dp)
+                            )
+                        }
+                        DropdownMenu(
+                            expanded = showMenu,
+                            onDismissRequest = { showMenu = false },
+                            containerColor = colors.cardSurface,
+                            shape = RoundedCornerShape(16.dp)
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Edit Jadwal", color = colors.textPrimary) },
+                                leadingIcon = {
+                                    Icon(
+                                        Icons.Outlined.Edit,
+                                        contentDescription = null,
+                                        tint = colors.textSecondary,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                },
+                                onClick = {
+                                    showMenu = false
+                                    onEdit()
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        "Hapus Jadwal",
+                                        color = colors.accentCrimson,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                },
+                                leadingIcon = {
+                                    Icon(
+                                        Icons.Outlined.DeleteOutline,
+                                        contentDescription = null,
+                                        tint = colors.accentCrimson,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                },
+                                onClick = {
+                                    showMenu = false
+                                    onDelete()
+                                }
+                            )
+                        }
+                    }
                 }
             }
 
@@ -828,9 +936,9 @@ private fun ScheduleTimelineCard(
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.Outlined.Videocam,
+                            imageVector = formatIcon,
                             contentDescription = null,
-                            tint = colors.textMuted,
+                            tint = if (isOnsite) colors.accentAmber else colors.textMuted,
                             modifier = Modifier.size(16.dp)
                         )
                         Text(
@@ -873,13 +981,38 @@ private fun ScheduleTimelineCard(
                 }
             }
 
-            // Direct Action Pills: Buka Meeting & Simpan ke Kalender
+            // Modern Direct Action Pills: Google Calendar + Google Maps (Onsite in-app browser) / Link Meeting
             FlowRow(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                if (isMeetingUrl) {
+                if (hasOnsiteLocation) {
+                    Surface(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .tactileClickable { onOpenOnsiteMaps(schedule.meetingLocation) }
+                            .testTag("schedule_open_maps_${schedule.id}"),
+                        shape = RoundedCornerShape(12.dp),
+                        color = colors.emeraldSoftBg,
+                        border = BorderStroke(1.dp, colors.emeraldBorder)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(7.dp)
+                        ) {
+                            GoogleMapsBrandIcon(size = 16.dp)
+                            Text(
+                                text = "Buka Google Maps",
+                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                color = colors.accentEmerald,
+                                maxLines = 1,
+                                softWrap = false
+                            )
+                        }
+                    }
+                } else if (isMeetingUrl) {
                     Surface(
                         modifier = Modifier
                             .clip(RoundedCornerShape(12.dp))
@@ -917,50 +1050,102 @@ private fun ScheduleTimelineCard(
                         .tactileClickable(onClick = onAddToCalendar)
                         .testTag("schedule_add_calendar_${schedule.id}"),
                     shape = RoundedCornerShape(12.dp),
-                    color = colors.blueSoftBg,
-                    border = BorderStroke(1.dp, colors.accentBlue.copy(alpha = 0.35f))
+                    color = colors.cardSurface,
+                    border = BorderStroke(1.dp, colors.borderSubtle)
                 ) {
                     Row(
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        horizontalArrangement = Arrangement.spacedBy(7.dp)
                     ) {
-                        Icon(
-                            imageVector = Icons.Outlined.EventAvailable,
-                            contentDescription = null,
-                            tint = colors.accentBlue,
-                            modifier = Modifier.size(15.dp)
-                        )
+                        GoogleCalendarBrandIcon(size = 16.dp)
                         Text(
-                            text = "Tambah ke Google Calendar",
+                            text = "Google Calendar",
                             style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                            color = colors.accentBlue,
+                            color = colors.textPrimary,
                             maxLines = 1,
                             softWrap = false
                         )
                     }
                 }
             }
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End
-            ) {
-                TextButton(onClick = onEdit) {
-                    Icon(Icons.Outlined.Edit, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text("Edit")
-                }
-                TextButton(
-                    onClick = onDelete,
-                    colors = ButtonDefaults.textButtonColors(contentColor = colors.accentCrimson)
-                ) {
-                    Icon(Icons.Outlined.DeleteOutline, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text("Hapus")
-                }
-            }
         }
+    }
+}
+
+/**
+ * Multi-color Google Calendar vector icon drawn cleanly on Canvas.
+ */
+@Composable
+private fun GoogleCalendarBrandIcon(size: Dp) {
+    Canvas(modifier = Modifier.size(size)) {
+        val w = this.size.width
+        val h = this.size.height
+        val stroke = w * 0.16f
+        val r = w * 0.18f
+
+        // White center tile
+        drawRoundRect(
+            color = Color.White,
+            topLeft = Offset(stroke * 0.6f, stroke * 0.6f),
+            size = Size(w - stroke * 1.2f, h - stroke * 1.2f),
+            cornerRadius = CornerRadius(r, r)
+        )
+        // Top Blue border
+        drawLine(Color(0xFF4285F4), Offset(r, stroke * 0.5f), Offset(w - r, stroke * 0.5f), strokeWidth = stroke)
+        // Left Blue border
+        drawLine(Color(0xFF4285F4), Offset(stroke * 0.5f, r), Offset(stroke * 0.5f, h - r), strokeWidth = stroke)
+        // Right Yellow border
+        drawLine(Color(0xFFFBBC04), Offset(w - stroke * 0.5f, r), Offset(w - stroke * 0.5f, h - r), strokeWidth = stroke)
+        // Bottom Green border
+        drawLine(Color(0xFF34A853), Offset(r, h - stroke * 0.5f), Offset(w - r, h - stroke * 0.5f), strokeWidth = stroke)
+        // Bottom-right folded Red corner accent
+        drawCircle(Color(0xFFEA4335), radius = stroke * 0.72f, center = Offset(w - stroke * 0.8f, h - stroke * 0.8f))
+        // Center calendar bars representing "31"
+        drawLine(Color(0xFF1A73E8), Offset(w * 0.34f, h * 0.42f), Offset(w * 0.52f, h * 0.42f), strokeWidth = stroke * 0.7f)
+        drawLine(Color(0xFF1A73E8), Offset(w * 0.34f, h * 0.62f), Offset(w * 0.52f, h * 0.62f), strokeWidth = stroke * 0.7f)
+        drawLine(Color(0xFF1A73E8), Offset(w * 0.64f, h * 0.37f), Offset(w * 0.64f, h * 0.67f), strokeWidth = stroke * 0.7f)
+    }
+}
+
+/**
+ * Multi-color Google Maps Pin vector icon drawn cleanly on Canvas.
+ */
+@Composable
+private fun GoogleMapsBrandIcon(size: Dp) {
+    Canvas(modifier = Modifier.size(size)) {
+        val w = this.size.width
+        val h = this.size.height
+        val cx = w * 0.5f
+        val cy = h * 0.38f
+        val r = w * 0.34f
+
+        // Bottom pin tail (Green)
+        val pinPath = Path().apply {
+            moveTo(cx - r * 0.82f, cy + r * 0.48f)
+            lineTo(cx, h * 0.94f)
+            lineTo(cx + r * 0.82f, cy + r * 0.48f)
+            close()
+        }
+        drawPath(pinPath, color = Color(0xFF34A853))
+
+        // Pin head color arcs (Red, Blue, Yellow, Green)
+        val arcSize = Size(r * 2f, r * 2f)
+        val arcTopLeft = Offset(cx - r, cy - r)
+        drawArc(Color(0xFFEA4335), startAngle = 190f, sweepAngle = 115f, useCenter = true, topLeft = arcTopLeft, size = arcSize)
+        drawArc(Color(0xFF4285F4), startAngle = 305f, sweepAngle = 95f, useCenter = true, topLeft = arcTopLeft, size = arcSize)
+        drawArc(Color(0xFFFBBC04), startAngle = 115f, sweepAngle = 75f, useCenter = true, topLeft = arcTopLeft, size = arcSize)
+        drawArc(Color(0xFF34A853), startAngle = 40f, sweepAngle = 75f, useCenter = true, topLeft = arcTopLeft, size = arcSize)
+
+        // Inner white circle cutout
+        drawCircle(color = Color.White, radius = r * 0.44f, center = Offset(cx, cy))
+        // Subtle blue center highlight ring
+        drawCircle(
+            color = Color(0xFF4285F4).copy(alpha = 0.25f),
+            radius = r * 0.44f,
+            center = Offset(cx, cy),
+            style = Stroke(width = 0.8.dp.toPx())
+        )
     }
 }
 

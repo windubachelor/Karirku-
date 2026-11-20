@@ -752,7 +752,8 @@ class KarirKuRepository(
         category: JobListingCategory,
         location: String,
         subtitle: String,
-        externalUrl: String
+        externalUrl: String,
+        expiresAtMillis: Long = 0L
     ): Result<String> {
         var docPath = "publicJobListings"
         return try {
@@ -761,6 +762,7 @@ class KarirKuRepository(
             val cleanCompany = companyName.trim().take(120)
             val cleanUrl = externalUrl.trim().take(600)
             val cleanAuthor = authorName.trim().ifBlank { "Pengguna KarirKu" }.take(100)
+            val safeExpiry = expiresAtMillis.coerceAtLeast(0L)
             require(cleanTitle.isNotEmpty()) { "Judul posisi lowongan wajib diisi." }
             require(cleanCompany.isNotEmpty()) { "Nama perusahaan wajib diisi." }
             require(cleanUrl.isNotEmpty()) { "Tautan lowongan wajib diisi." }
@@ -779,6 +781,7 @@ class KarirKuRepository(
                         "location" to location.trim().take(120),
                         "subtitle" to subtitle.trim().take(200),
                         "externalUrl" to cleanUrl,
+                        "expiresAtMillis" to safeExpiry,
                         "createdAt" to FieldValue.serverTimestamp(),
                         "updatedAt" to FieldValue.serverTimestamp()
                     )
@@ -796,6 +799,7 @@ class KarirKuRepository(
                         "location" to location.trim().take(120),
                         "subtitle" to subtitle.trim().take(200),
                         "externalUrl" to cleanUrl,
+                        "expiresAtMillis" to safeExpiry,
                         "updatedAt" to FieldValue.serverTimestamp()
                     )
                 ).await()
@@ -839,6 +843,7 @@ class KarirKuRepository(
         title: String,
         content: String,
         tag: String,
+        colorKey: String = "DEFAULT",
         pinned: Boolean
     ): Result<String> {
         var docPath = "users/$userId/notes"
@@ -847,6 +852,7 @@ class KarirKuRepository(
             val cleanTitle = title.trim().take(120)
             require(cleanTitle.isNotEmpty()) { "Judul catatan wajib diisi." }
             val cleanTag = tag.trim().ifBlank { "Umum" }.take(40)
+            val cleanColor = colorKey.trim().ifBlank { "DEFAULT" }.take(24)
             val colRef = db.collection("users").document(uid).collection("notes")
 
             if (existingId.isNullOrBlank()) {
@@ -856,8 +862,9 @@ class KarirKuRepository(
                     mapOf(
                         "userId" to uid,
                         "title" to cleanTitle,
-                        "content" to content.trim().take(5000),
+                        "content" to content.trimEnd().take(10000),
                         "tag" to cleanTag,
+                        "colorKey" to cleanColor,
                         "pinned" to pinned,
                         "createdAt" to FieldValue.serverTimestamp(),
                         "updatedAt" to FieldValue.serverTimestamp()
@@ -870,8 +877,9 @@ class KarirKuRepository(
                 docRef.update(
                     mapOf(
                         "title" to cleanTitle,
-                        "content" to content.trim().take(5000),
+                        "content" to content.trimEnd().take(10000),
                         "tag" to cleanTag,
+                        "colorKey" to cleanColor,
                         "pinned" to pinned,
                         "updatedAt" to FieldValue.serverTimestamp()
                     )
